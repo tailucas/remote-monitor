@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     g++ \
     gcc \
+    git \
     less \
     libffi-dev \
     libssl-dev \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-pip \
     python2.7 \
     python2.7-dev \
+    python-smbus \
     rsyslog \
     ssl-cert \
     supervisor
@@ -44,6 +46,9 @@ RUN mkdir /var/run/sshd
 RUN mkdir /root/.ssh/
 
 COPY . /app
+# Python add-ons
+RUN git clone https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git /app
+ENV PYTHONPATH $PYTHONPATH:/app/ABElectronics_Python_Libraries/IOPi/:/app/ABElectronics_Python_Libraries/ADCPi/
 COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
