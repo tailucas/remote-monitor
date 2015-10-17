@@ -28,9 +28,6 @@ else
   sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 fi
 
-# remove unnecessary kernel drivers
-rmmod w1_gpio||true
-
 # groups
 groupadd -f -r "${APP_GROUP}"
 
