@@ -44,6 +44,12 @@ chown -R "${APP_USER}:${APP_GROUP}" /data/
 # so app can do i2c
 adduser "${APP_USER}" i2c
 
+# show what i2c buses are available, and grant file permissions
+for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
+  /usr/sbin/i2cdetect -y "$(cut -f2 -d '-' <<< $i)"
+  chown "${APP_USER}" "/dev/${i}"
+done
+
 # start d-bus, let supervisord do the rest
 /etc/init.d/dbus start
 
