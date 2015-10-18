@@ -39,14 +39,8 @@ useradd -r -g "${APP_GROUP}" "${APP_USER}"
 chown -R "${APP_USER}:${APP_GROUP}" /app/
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
-# so app can make the noise
-adduser "${APP_USER}" audio
-# so app can interact with the serial device
-adduser "${APP_USER}" dialout
-# so app can god mode
-adduser "${APP_USER}" sudo
-echo "%${APP_GROUP}  ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${APP_GROUP}"
-chmod 0440 "/etc/sudoers.d/${APP_GROUP}"
+# so app can do i2c
+adduser "${APP_USER}" i2c
 
 # start d-bus, let supervisord do the rest
 /etc/init.d/dbus start

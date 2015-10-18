@@ -4,19 +4,16 @@ MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    alsa-utils \
-    bluetooth \
-    bluez \
     ca-certificates \
     cpp \
     curl \
     g++ \
     gcc \
     git \
+    i2c-tools \
     less \
     libffi-dev \
     libssl-dev \
-    mplayer \
     openssh-server \
     openssl \
     python-pip \
