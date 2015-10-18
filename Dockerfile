@@ -47,7 +47,7 @@ RUN mkdir /root/.ssh/
 COPY . /app
 # Python add-ons
 RUN git clone https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git /app/libs
-ENV PYTHONPATH $PYTHONPATH:/app/libs/ABElectronics_Python_Libraries/IOPi/:/app/libs/ABElectronics_Python_Libraries/ADCPi/
+ENV PYTHONPATH $PYTHONPATH:/app/libs/IOPi/:/app/libs/ADCPi/
 COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
