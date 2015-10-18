@@ -37,7 +37,7 @@ groupadd -f -r "${APP_GROUP}"
 cat /app/config/remote_monitor.conf | python /app/config_interpol > /app/remote_monitor.conf
 
 # non-root users
-useradd -r -g "${APP_GROUP}" "${APP_USER}"
+id -u "${APP_USER}" || useradd -r -g "${APP_GROUP}" "${APP_USER}"
 chown -R "${APP_USER}:${APP_GROUP}" /app/
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
