@@ -141,9 +141,9 @@ if __name__ == "__main__":
         sleep(1)
 
         while True:
-            for i in range(1,8):
+            for i in range(1, 9):
                 log.info('ADC1, pin {}: {}'.format(i, adc1.read_raw(i)))
-            for i in range(1,8):
+            for i in range(1, 9):
                 log.info('ADC2, pin {}: {}'.format(i, adc2.read_raw(i)))
             sleep(60)
 
