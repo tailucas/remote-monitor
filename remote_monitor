@@ -141,7 +141,7 @@ if __name__ == "__main__":
                 bus1.write_pin(i, 0)
                 sleep(0.1)
 
-            sleep(3600)
+            sleep(24 * 3600)
 
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing serial connection...')
