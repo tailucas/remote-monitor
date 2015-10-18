@@ -24,7 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python-smbus \
     rsyslog \
     ssl-cert \
-    supervisor
+    supervisor \
+    vim
 
 COPY ./config/remote_monitor_pip /tmp/
 # update pip
