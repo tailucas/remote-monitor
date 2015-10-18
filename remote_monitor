@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
             # 1s
             for i in range(1, 16):
-                log.write('Setting pin {}'.format(i))
+                log.info('Setting pin {}'.format(i))
                 bus1.write_pin(i, 1)
                 sleep(2)
 
