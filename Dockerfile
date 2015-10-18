@@ -45,8 +45,6 @@ RUN mkdir /var/run/sshd
 RUN mkdir /root/.ssh/
 
 COPY . /app
-# Python add-ons
-RUN git clone https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git /app/libs
 COPY ./entrypoint.sh /
 
 ENTRYPOINT ["/entrypoint.sh"]
