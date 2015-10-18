@@ -4,6 +4,8 @@ set -eux
 # set the timezone
 tzupdate
 
+# load I2C
+modprobe i2c-dev
 
 # remote system logging
 if [ -n "${RSYSLOG_HOSTNAME:-}" ]; then
