@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     cpp \
     curl \
+    dbus \
     g++ \
     gcc \
     git \
@@ -16,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     openssh-server \
     openssl \
+    python-dbus \
     python-pip \
     python2.7 \
     python2.7-dev \
