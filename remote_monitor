@@ -13,6 +13,7 @@ import umsgpack
 import zmq
 
 from ABE_helpers import ABEHelpers
+from ABE_ADCPi import ADCPi
 from ABE_IoPi import IoPi
 
 from ConfigParser import ConfigParser
@@ -104,44 +105,47 @@ if __name__ == "__main__":
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
 
-    adc_address1 = 0x6A
-    adc_address2 = 0x6B
+    adc1_address1 = 0x68
+    adc1_address2 = 0x69
+    adc2_address1 = 0x6A
+    adc2_address2 = 0x6B
 
     expander_address1 = 0x20
     expander_address2 = 0x21
 
     i2c_helper = ABEHelpers()
-    newbus = i2c_helper.get_smbus()
+    i2cbus = i2c_helper.get_smbus()
 
-    bus1 = IoPi(newbus, expander_address1)
+    adc1 = ADCPi(i2cbus, adc1_address1, adc1_address2, 12)
+    adc2 = ADCPi(i2cbus, adc2_address1, adc2_address2, 12)
 
-    bus1.set_port_direction(0, 0x00)
-    bus1.set_port_direction(1, 0x00)
-    bus1.write_port(0, 0x00)
-    bus1.write_port(1, 0x00)
+    io_port1 = IoPi(i2cbus, expander_address1)
+    io_port1.set_port_direction(0, 0x00)
+    io_port1.set_port_direction(1, 0x00)
+    io_port1.write_port(0, 0x00)
+    io_port1.write_port(1, 0x00)
 
     try:
+
+        # 1s
+        io_port1.write_pin(14, 1)
+        sleep(1)
+        io_port1.write_pin(3, 1)
+        sleep(1)
+        io_port1.write_pin(4, 1)
+        sleep(1)
+        io_port1.write_pin(13, 1)
+        sleep(1)
+        io_port1.write_port(0, 0x00)
+        io_port1.write_port(1, 0x00)
+        sleep(1)
+
         while True:
-
-            # 1s
-            for i in range(3, 5):
-                log.info('Setting pin {}'.format(i))
-                bus1.write_pin(i, 1)
-                sleep(2)
-
-            for i in range(13, 15):
-                log.info('Setting pin {}'.format(i))
-                bus1.write_pin(i, 1)
-                sleep(2)
-
-            sleep(5)
-
-            # 0s
-            for i in range(1, 16):
-                bus1.write_pin(i, 0)
-                sleep(0.1)
-
-            sleep(24 * 3600)
+            for i in range(1,8):
+                log.info('ADC1, pin {}: {}'.format(i, adc1.read_raw(i)))
+            for i in range(1,8):
+                log.info('ADC2, pin {}: {}'.format(i, adc2.read_raw(i)))
+            sleep(60)
 
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing serial connection...')
