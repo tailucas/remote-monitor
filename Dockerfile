@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     i2c-tools \
     less \
     libffi-dev \
+    libraspberrypi-bin \
     libssl-dev \
     openssh-server \
     openssl \
