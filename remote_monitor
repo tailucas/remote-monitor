@@ -124,12 +124,12 @@ if __name__ == "__main__":
         while True:
 
             # 1s
-            for i in range(3, 4):
+            for i in range(3, 5):
                 log.info('Setting pin {}'.format(i))
                 bus1.write_pin(i, 1)
                 sleep(1)
 
-            for i in range(11, 12):
+            for i in range(13, 15):
                 log.info('Setting pin {}'.format(i))
                 bus1.write_pin(i, 1)
                 sleep(1)
