@@ -77,7 +77,7 @@ def make_payload(timestamp=None, data=None):
     if timestamp is None:
         timestamp = time.time()
     payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
-    payload['location'] = location
+    payload['location'] = '#YOLO'
     if data is not None and len(data) > 0:
         payload['data'] = data
     log.debug(json.dumps(payload))
@@ -93,35 +93,56 @@ if __name__ == "__main__":
     log.addHandler(syslog_handler)
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     log.addHandler(stream_handler)
+
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
+
     # process configuration
     adcs = dict()
     adc_count = int(config.get('app', 'adc_count'))
     for nr in range(1, adc_count+1):
         adc = 'adc{}'.format(nr)
         adc_address = config.get('adc_address', adc).split(',')
+        log.debug("Configuring '{}' @ '{}'".format(adc, adc_address))
         adcs[adc] = ADCPi(i2c_bus, adc_address[0], adc_address[1], 12)
 
     ios = dict()
     io_count = int(config.get('app', 'io_count'))
     for nr in range(1, io_count+1):
         io = 'io{}'.format(nr)
-        ios[io] = IoPi(i2c_bus, config.get('io_address', io))
+        address = config.get('io_address', io)
+        log.debug("Configuring '{}' @ '{}'".format(io, address))
+        io_port = IoPi(i2c_bus, address)
+        # set port direction to output
+        io_port.set_port_direction(0, 0x00)
+        io_port.set_port_direction(1, 0x00)
+        # zero all pins
+        io_port.write_port(0, 0x00)
+        io_port.write_port(1, 0x00)
+        ios[io] = io_port
 
+    relay_to_io = dict()
     relay_count = int(config.get('app', 'relay_count'))
     for nr in range(1, relay_count+1):
         relay = 'relay{}'.format(nr)
-        io, pin = tuple(config.get('relay_address', relay).split(':'))
+        mapping = tuple(config.get('relay_address', relay).split(':'))
+        relay_to_io[relay] = mapping
+        log.debug("Mapped '{}' to IO '{}' on pin {}".format(relay, mapping[0], mapping[1]))
 
+    detector_to_adc = dict()
+    field_labels = dict()
+    field_normal_values = dict()
+    field_active_values = dict()
     detector_count = int(config.get('app', 'detector_count'))
     for nr in range(1, detector_count+1):
         detector = 'd{}'.format(nr)
-        adc, pin = tuple(config.get('detector_address', detector).split(':'))
-
-    config.get('field_labels', 'd{}'.format(detector))
-    config.get('field_normal_values', 'd{}'.format(detector))
-    config.get('field_active_values', 'd{}'.format(detector))
+        mapping = tuple(config.get('detector_address', detector).split(':'))
+        detector_to_adc[detector] = mapping
+        label = config.get('field_labels', detector)
+        field_labels[detector] = label
+        field_normal_values[detector] = int(config.get('field_normal_values', detector))
+        field_active_values[detector] = int(config.get('field_active_values', detector))
+        log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, mapping[0], mapping[1]))
 
     # start up threads
     uploader = Uploader()
@@ -129,47 +150,21 @@ if __name__ == "__main__":
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
-    adc1_address1 = 0x68
-    adc1_address2 = 0x69
-    adc2_address1 = 0x6A
-    adc2_address2 = 0x6B
-
-    expander_address1 = 0x20
-    expander_address2 = 0x21
-
-    i2c_helper = ABEHelpers()
-    i2cbus = i2c_helper.get_smbus()
-
-    adc1 = ADCPi(i2cbus, adc1_address1, adc1_address2, 12)
-    adc2 = ADCPi(i2cbus, adc2_address1, adc2_address2, 12)
-
-    io_port1 = IoPi(i2cbus, expander_address1)
-    io_port1.set_port_direction(0, 0x00)
-    io_port1.set_port_direction(1, 0x00)
-    io_port1.write_port(0, 0x00)
-    io_port1.write_port(1, 0x00)
-
     try:
+        for relay in relay_to_io.keys():
+            io_name, pin = relay_to_io[relay]
+            log.debug('Activating {} on {}, pin {}'.format(relay, io_name, pin))
+            ios[io_name].write_pin(pin, 1)
+            sleep(1)
 
-
-        # 1s
-        io_port1.write_pin(14, 1)
-        sleep(1)
-        io_port1.write_pin(3, 1)
-        sleep(1)
-        io_port1.write_pin(4, 1)
-        sleep(1)
-        io_port1.write_pin(13, 1)
-        sleep(1)
-        io_port1.write_port(0, 0x00)
-        io_port1.write_port(1, 0x00)
-        sleep(1)
+        for io in ios.values():
+            io.write_port(0, 0x00)
+            io.write_port(1, 0x00)
 
         while True:
-            for i in range(1, 9):
-                log.info('ADC1, pin {}: {}'.format(i, adc1.read_raw(i)))
-            for i in range(1, 9):
-                log.info('ADC2, pin {}: {}'.format(i, adc2.read_raw(i)))
+            for adc_name, adc in adcs.items():
+                for i in range(1, 9):
+                    log.debug('{}, pin {}: {}'.format(adc_name, i, adc.read_raw(i)))
             sleep(60)
 
     except(KeyboardInterrupt, SystemExit):
