@@ -129,9 +129,9 @@ if __name__ == "__main__":
     relay_count = int(config.get('app', 'relay_count'))
     for nr in range(1, relay_count+1):
         relay = 'relay{}'.format(nr)
-        mapping = tuple(config.get('relay_address', relay).split(':'))
-        relay_to_io[relay] = mapping
-        log.debug("Mapped '{}' to IO '{}' on pin {}".format(relay, mapping[0], mapping[1]))
+        io, pin = tuple(config.get('relay_address', relay).split(':'))
+        relay_to_io[relay] = (io, int(pin))
+        log.debug("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
 
     detector_to_adc = dict()
     field_labels = dict()
@@ -140,13 +140,13 @@ if __name__ == "__main__":
     detector_count = int(config.get('app', 'detector_count'))
     for nr in range(1, detector_count+1):
         detector = 'd{}'.format(nr)
-        mapping = tuple(config.get('detector_address', detector).split(':'))
-        detector_to_adc[detector] = mapping
+        adc, pin = tuple(config.get('detector_address', detector).split(':'))
+        detector_to_adc[detector] = (adc, int(pin))
         label = config.get('field_labels', detector)
         field_labels[detector] = label
         field_normal_values[detector] = int(config.get('field_normal_values', detector))
         field_active_values[detector] = int(config.get('field_active_values', detector))
-        log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, mapping[0], mapping[1]))
+        log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, adc, pin))
 
     # start up threads
     uploader = Uploader()
