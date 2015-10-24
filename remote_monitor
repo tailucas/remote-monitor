@@ -104,7 +104,10 @@ if __name__ == "__main__":
         adc = 'adc{}'.format(nr)
         adc_address = config.get('adc_address', adc).split(',')
         log.debug("Configuring '{}' @ '{}'".format(adc, adc_address))
-        adcs[adc] = ADCPi(i2c_bus, adc_address[0], adc_address[1], 12)
+        adcs[adc] = ADCPi(i2c_bus,
+                          int(adc_address[0], 16),
+                          int(adc_address[1], 16),
+                          12)
 
     ios = dict()
     io_count = int(config.get('app', 'io_count'))
@@ -112,7 +115,8 @@ if __name__ == "__main__":
         io = 'io{}'.format(nr)
         address = config.get('io_address', io)
         log.debug("Configuring '{}' @ '{}'".format(io, address))
-        io_port = IoPi(i2c_bus, address)
+        io_port = IoPi(i2c_bus,
+                       int(address, 16))
         # set port direction to output
         io_port.set_port_direction(0, 0x00)
         io_port.set_port_direction(1, 0x00)
