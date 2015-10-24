@@ -29,13 +29,9 @@ APP = os.path.basename(__file__)
 DIR = os.path.abspath(os.path.dirname(__file__))
 log = logging.getLogger(APP)
 
-EXPECTED_FIELDS = 6
-SAMPLE_DEVIATION_TOLERANCE = 4
 UPLOAD_TIMEOUT_SECONDS = 1
 HEARTBEAT_INTERVAL_SECONDS = 5
 SAMPLE_INTERVAL_SECONDS = 1
-SAMPLE_DEBOUNCE_COOLDOWN_SECONDS = 60
-DEVICE_MONITOR_CONCURRENCY = 4
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
 
@@ -44,7 +40,6 @@ config = ConfigParser()
 config.optionxform = str
 config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 
-location = config.get('app', 'location')
 zmq_context = zmq.Context()
 
 
@@ -98,12 +93,41 @@ if __name__ == "__main__":
     log.addHandler(syslog_handler)
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     log.addHandler(stream_handler)
+    # i2c
+    i2c_bus = ABEHelpers().get_smbus()
+    # process configuration
+    adcs = dict()
+    adc_count = int(config.get('app', 'adc_count'))
+    for nr in range(1, adc_count+1):
+        adc = 'adc{}'.format(nr)
+        adc_address = config.get('adc_address', adc).split(',')
+        adcs[adc] = ADCPi(i2c_bus, adc_address[0], adc_address[1], 12)
+
+    ios = dict()
+    io_count = int(config.get('app', 'io_count'))
+    for nr in range(1, io_count+1):
+        io = 'io{}'.format(nr)
+        ios[io] = IoPi(i2c_bus, config.get('io_address', io))
+
+    relay_count = int(config.get('app', 'relay_count'))
+    for nr in range(1, relay_count+1):
+        relay = 'relay{}'.format(nr)
+        io, pin = tuple(config.get('relay_address', relay).split(':'))
+
+    detector_count = int(config.get('app', 'detector_count'))
+    for nr in range(1, detector_count+1):
+        detector = 'd{}'.format(nr)
+        adc, pin = tuple(config.get('detector_address', detector).split(':'))
+
+    config.get('field_labels', 'd{}'.format(detector))
+    config.get('field_normal_values', 'd{}'.format(detector))
+    config.get('field_active_values', 'd{}'.format(detector))
+
     # start up threads
     uploader = Uploader()
     uploader.start()
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
-
 
     adc1_address1 = 0x68
     adc1_address2 = 0x69
@@ -126,6 +150,7 @@ if __name__ == "__main__":
     io_port1.write_port(1, 0x00)
 
     try:
+
 
         # 1s
         io_port1.write_pin(14, 1)
