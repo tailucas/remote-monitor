@@ -45,7 +45,7 @@ zmq_context = zmq.Context()
 class RelayControl(Thread):
 
     def __init__(self, relay_mappings, ios):
-        self(RelayControl, self).__init__()
+        super(RelayControl, self).__init__()
         self.daemon = True
         # IO control
         self._relay_mappings = relay_mappings
