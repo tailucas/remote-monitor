@@ -5,8 +5,6 @@ import logging.handlers
 import os
 import pprint
 import pytz
-import signal
-import subprocess
 import sys
 import time
 import umsgpack
@@ -32,6 +30,7 @@ log = logging.getLogger(APP)
 UPLOAD_TIMEOUT_SECONDS = 1
 HEARTBEAT_INTERVAL_SECONDS = 5
 SAMPLE_INTERVAL_SECONDS = 1
+RELAY_ON_TIME_SECONDS = 2
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
 
@@ -43,10 +42,40 @@ config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 zmq_context = zmq.Context()
 
 
-def exec_cmd(cmd):
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    out, err = p.communicate()
-    return out, err, p.returncode
+class RelayControl(Thread):
+
+    def __init__(self, relay_mappings, ios):
+        self(RelayControl, self).__init__()
+        self.daemon = True
+        # IO control
+        self._relay_mappings = relay_mappings
+        self._ios = ios
+        # Pull socket to receive relay control commands
+        self.socket = zmq_context.socket(zmq.PULL)
+        self.socket.bind('tcp://*:{port}'.format(port=config.get('zmq', 'port')))
+
+    def run(self):
+        while True:
+            try:
+                data = umsgpack.unpackb(self.socket.recv())
+                if data and 'relays' in data:
+                    relays_to_activate = data['relays']
+                    for relay in relays_to_activate:
+                        if relay in self._relay_mappings:
+                            io_name, pin = self._relay_mappings[relay]
+                            log.debug('Activating {} on {}, pin {}'.format(relay, io_name, pin))
+                            self._ios[io_name].write_pin(pin, 1)
+                    #TODO remove
+                    sleep(RELAY_ON_TIME_SECONDS)
+                    # zero again
+                    for io in self._ios.values():
+                        io.write_port(0, 0x00)
+                        io.write_port(1, 0x00)
+            except ContextTerminated:
+                break
+            except Exception:
+                log.exception(self.__class__.__name__)
+                continue
 
 
 class Uploader(Thread):
@@ -154,25 +183,18 @@ if __name__ == "__main__":
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
+    relay_control = RelayControl(relay_mappings=relay_to_io, ios=ios)
+    relay_control.start()
+
     try:
-        for relay in relay_to_io.keys():
-            io_name, pin = relay_to_io[relay]
-            log.debug('Activating {} on {}, pin {}'.format(relay, io_name, pin))
-            ios[io_name].write_pin(pin, 1)
-            sleep(1)
-
-        for io in ios.values():
-            io.write_port(0, 0x00)
-            io.write_port(1, 0x00)
-
         while True:
             for adc_name, adc in adcs.items():
                 for i in range(1, 9):
                     log.debug('{}, pin {}: {}'.format(adc_name, i, adc.read_raw(i)))
             sleep(60)
-
     except(KeyboardInterrupt, SystemExit):
-        log.info('Closing serial connection...')
+        log.info('Closing message queues...')
         uploader_socket.close()
+        relay_control.close()
         log.info('Terminating messaging context...')
         zmq_context.term()
