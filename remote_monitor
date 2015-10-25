@@ -58,6 +58,7 @@ class RelayControl(Thread):
         while True:
             try:
                 data = umsgpack.unpackb(self.socket.recv())
+                log.info("Relay control '{}'".format(data))
                 if data and 'relays' in data:
                     relays_to_activate = data['relays']
                     for relay in relays_to_activate:
