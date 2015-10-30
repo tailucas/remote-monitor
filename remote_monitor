@@ -214,7 +214,8 @@ if __name__ == "__main__":
 
     relay_to_worker = dict()
     # start relays
-    for relay_name, (io, pin) in relay_to_io:
+    for relay_name in relay_to_io.keys():
+        io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=io, pin=pin)
         relay.start()
         relay_to_worker[relay] = relay.zmq_url
