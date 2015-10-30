@@ -27,12 +27,12 @@ APP = os.path.basename(__file__)
 DIR = os.path.abspath(os.path.dirname(__file__))
 log = logging.getLogger(APP)
 
-UPLOAD_TIMEOUT_SECONDS = 1
 HEARTBEAT_INTERVAL_SECONDS = 5
 SAMPLE_INTERVAL_SECONDS = 1
-RELAY_ON_TIME_SECONDS = 2
+RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
+URL_WORKER_RELAY_CTRL = 'inproc://{}'
 
 
 config = ConfigParser()
@@ -42,36 +42,70 @@ config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 zmq_context = zmq.Context()
 
 
+class Relay(Thread):
+
+    def __init__(self, relay_name, io, pin):
+        super(Relay, self).__init__()
+        self.daemon = True
+        self._name = relay_name
+        self._io = io
+        self._pin = pin
+        self._zmq_url = URL_WORKER_RELAY_CTRL.format(relay_name)
+        self.socket = zmq_context.socket(zmq.PULL)
+        self.socket.bind(self._zmq_url)
+
+    @property
+    def zmq_url(self):
+        return self._zmq_url
+
+    def run(self):
+        while True:
+            try:
+                relay_ctrl = self.socket.recv_pyobj()
+                log.info("Control {} '{}'".format(self._name, relay_ctrl))
+                if 'state' in relay_control:
+                    if relay_control['state'] is True:
+                        self._io.write_pin(self._pin, 1)
+                        # sleep
+                        if 'delay' in relay_control:
+                            delay = relay_control['delay']
+                        else:
+                            delay = RELAY_DEFAULT_ACTIVE_TIME_SECONDS
+                        sleep(float(delay))
+                    self._io.write_pin(self._pin, 0)
+            except ContextTerminated:
+                break
+            except Exception:
+                log.exception(self.__class__.__name__)
+                continue
+
+
 class RelayControl(Thread):
 
-    def __init__(self, relay_mappings, ios):
+    def __init__(self, relay_mappings):
         super(RelayControl, self).__init__()
         self.daemon = True
-        # IO control
-        self._relay_mappings = relay_mappings
-        self._ios = ios
         # Pull socket to receive relay control commands
         self.socket = zmq_context.socket(zmq.PULL)
         self.socket.bind('tcp://*:{port}'.format(port=config.get('zmq', 'port')))
+        # Push socket to control relays
+        self._sockets = dict()
+        for relay, worker_url in relay_mappings:
+            socket = zmq_context.socket(zmq.PUSH)
+            self._sockets[relay] = socket.connect(worker_url)
 
     def run(self):
         while True:
             try:
                 data = umsgpack.unpackb(self.socket.recv())
                 log.info("Relay control '{}'".format(data))
-                if data and 'relays' in data:
+                if 'relays' in data:
                     relays_to_activate = data['relays']
-                    for relay in relays_to_activate:
-                        if relay in self._relay_mappings:
-                            io_name, pin = self._relay_mappings[relay]
-                            log.debug('Activating {} on {}, pin {}'.format(relay, io_name, pin))
-                            self._ios[io_name].write_pin(pin, 1)
-                    #TODO remove
-                    sleep(RELAY_ON_TIME_SECONDS)
-                    # zero again
-                    for io in self._ios.values():
-                        io.write_port(0, 0x00)
-                        io.write_port(1, 0x00)
+                    for relay in relays_to_activate.keys():
+                        if relay in self._sockets:
+                            relay_ctrl = relays_to_activate[relay]
+                            log.debug('Sending control for {}: [{}]'.format(relay, relay_ctrl))
+                            self._sockets[relay].send_pyobj(relay_ctrl)
             except ContextTerminated:
                 break
             except Exception:
@@ -178,13 +212,20 @@ if __name__ == "__main__":
         field_active_values[detector] = int(config.get('field_active_values', detector))
         log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, adc, pin))
 
+    relay_to_worker = dict()
+    # start relays
+    for relay_name, (io, pin) in relay_to_io:
+        relay = Relay(relay_name=relay_name, io=io, pin=pin)
+        relay.start()
+        relay_to_worker[relay] = relay.zmq_url
+
     # start up threads
     uploader = Uploader()
     uploader.start()
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
-    relay_control = RelayControl(relay_mappings=relay_to_io, ios=ios)
+    relay_control = RelayControl(relay_mappings=relay_to_worker)
     relay_control.start()
 
     try:
@@ -192,7 +233,7 @@ if __name__ == "__main__":
             for adc_name, adc in adcs.items():
                 for i in range(1, 9):
                     log.debug('{}, pin {}: {}'.format(adc_name, i, adc.read_raw(i)))
-            sleep(60)
+            sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
         uploader_socket.close()
