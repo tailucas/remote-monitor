@@ -90,7 +90,7 @@ class RelayControl(Thread):
         self.socket.bind('tcp://*:{port}'.format(port=config.get('zmq', 'port')))
         # Push socket to control relays
         self._sockets = dict()
-        for relay, worker_url in relay_mappings:
+        for relay, worker_url in relay_mappings.items():
             socket = zmq_context.socket(zmq.PUSH)
             self._sockets[relay] = socket.connect(worker_url)
 
@@ -212,13 +212,15 @@ if __name__ == "__main__":
         field_active_values[detector] = int(config.get('field_active_values', detector))
         log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, adc, pin))
 
+    relay_workers = list()
     relay_to_worker = dict()
     # start relays
     for relay_name in relay_to_io.keys():
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=io, pin=pin)
         relay.start()
-        relay_to_worker[relay] = relay.zmq_url
+        relay_workers.append(relay)
+        relay_to_worker[relay_name] = relay.zmq_url
 
     # start up threads
     uploader = Uploader()
