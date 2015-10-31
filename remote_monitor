@@ -62,13 +62,13 @@ class Relay(Thread):
         while True:
             try:
                 relay_ctrl = self.socket.recv_pyobj()
-                log.info("Control {} '{}'".format(self._name, relay_ctrl))
-                if 'state' in relay_control:
-                    if relay_control['state'] is True:
+                log.info("{}: control {} '{}'".format(self._zmq_url, self._name, relay_ctrl))
+                if 'state' in relay_ctrl:
+                    if relay_ctrl['state'] is True:
                         self._io.write_pin(self._pin, 1)
                         # sleep
-                        if 'delay' in relay_control:
-                            delay = relay_control['delay']
+                        if 'delay' in relay_ctrl:
+                            delay = relay_ctrl['delay']
                         else:
                             delay = RELAY_DEFAULT_ACTIVE_TIME_SECONDS
                         sleep(float(delay))
