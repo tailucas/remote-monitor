@@ -92,7 +92,8 @@ class RelayControl(Thread):
         self._sockets = dict()
         for relay, worker_url in relay_mappings.items():
             socket = zmq_context.socket(zmq.PUSH)
-            self._sockets[relay] = socket.connect(worker_url)
+            self._sockets[relay] = socket
+            socket.connect(worker_url)
 
     def run(self):
         while True:
