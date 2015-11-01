@@ -237,9 +237,9 @@ if __name__ == "__main__":
         while True:
             for adc_name, adc in adcs.items():
                 for i in range(1, 9):
-                    sampled_value = adc.read_raw(i)
-                    if sampled_value > 0:
-                        log.debug('{}, pin {}: {}'.format(adc_name, i, sampled_value))
+                    raw_value = adc.read_raw(i)
+                    sampled_value = adc.read_voltage(i)
+                    log.debug('{}, pin {}: {}v ({})'.format(adc_name, i, sampled_value, raw_value))
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
