@@ -201,14 +201,13 @@ if __name__ == "__main__":
         log.debug("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
 
     detector_to_adc = dict()
-    field_labels = dict()
     detector_count = int(config.get('app', 'detector_count'))
     detector_ranges = dict()
     for nr in range(1, detector_count+1):
         detector = 'd{}'.format(nr)
         adc, pin = tuple(config.get('detector_address', detector).split(':'))
         detector_to_adc[detector] = (adc, int(pin))
-        pairs = dict({k: int(v) for k, v in
+        pairs = dict({int(k): v for k, v in
                       map(lambda s: s.split(':'),
                         config.get('detector_values', detector).split(','))})
         detector_ranges[detector] = pairs
@@ -237,13 +236,12 @@ if __name__ == "__main__":
         while True:
             for d in detector_to_adc.keys():
                 adc_name, pin = detector_to_adc[d]
-                label = field_labels[d]
                 adc = adcs[adc_name]
             for adc_name, adc in adcs.items():
                 for i in range(1, 9):
                     sampled_value = adc.read_voltage(i)
                     normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
-                    log.debug('{}, pin {}: {}v ({})'.format(adc_name, i, sampled_value))
+                    log.debug('{}, pin {}: {}v ({})'.format(adc_name, i, sampled_value, normalized_value))
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
