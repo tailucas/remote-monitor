@@ -27,6 +27,7 @@ APP = os.path.basename(__file__)
 DIR = os.path.abspath(os.path.dirname(__file__))
 log = logging.getLogger(APP)
 
+ADC_SAMPLE_MAX = 5.0
 HEARTBEAT_INTERVAL_SECONDS = 5
 SAMPLE_INTERVAL_SECONDS = 1
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
@@ -201,18 +202,17 @@ if __name__ == "__main__":
 
     detector_to_adc = dict()
     field_labels = dict()
-    field_normal_values = dict()
-    field_active_values = dict()
     detector_count = int(config.get('app', 'detector_count'))
+    detector_ranges = dict()
     for nr in range(1, detector_count+1):
         detector = 'd{}'.format(nr)
         adc, pin = tuple(config.get('detector_address', detector).split(':'))
         detector_to_adc[detector] = (adc, int(pin))
-        label = config.get('field_labels', detector)
-        field_labels[detector] = label
-        field_normal_values[detector] = int(config.get('field_normal_values', detector))
-        field_active_values[detector] = int(config.get('field_active_values', detector))
-        log.debug("Mapped detector '{}' as '{}' to ADC '{}' on pin {}".format(detector, label, adc, pin))
+        pairs = detector_ranges[detector] = dict({k: int(v) for k, v in
+                                                  map(lambda s: s.split(':'),
+                                                    config.get('detector_values', detector).split(','))})
+        detector_ranges[detector] = pairs
+        log.debug("ADC {}, pin {} will detect [{}]".format(adc, pin, pairs.values()))
 
     relay_workers = list()
     relay_to_worker = dict()
@@ -235,11 +235,15 @@ if __name__ == "__main__":
 
     try:
         while True:
+            for d in detector_to_adc.keys():
+                adc_name, pin = detector_to_adc[d]
+                label = field_labels[d]
+                adc = adcs[adc_name]
             for adc_name, adc in adcs.items():
                 for i in range(1, 9):
-                    raw_value = adc.read_raw(i)
                     sampled_value = adc.read_voltage(i)
-                    log.debug('{}, pin {}: {}v ({})'.format(adc_name, i, sampled_value, raw_value))
+                    normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
+                    log.debug('{}, pin {}: {}v ({})'.format(adc_name, i, sampled_value))
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
