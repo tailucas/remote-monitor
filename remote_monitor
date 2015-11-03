@@ -211,7 +211,9 @@ if __name__ == "__main__":
                       map(lambda s: s.split(':'),
                         config.get('detector_values', detector).split(','))})
         detector_ranges[detector] = pairs
-        log.debug("ADC {}, pin {} will detect [{}]".format(adc, pin, pairs.values()))
+        keys = pairs.values()
+        keys.sort()
+        log.debug("ADC {} pin {} will detect {}".format(adc, pin, keys))
 
     relay_workers = list()
     relay_to_worker = dict()
