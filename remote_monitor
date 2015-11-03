@@ -208,9 +208,9 @@ if __name__ == "__main__":
         detector = 'd{}'.format(nr)
         adc, pin = tuple(config.get('detector_address', detector).split(':'))
         detector_to_adc[detector] = (adc, int(pin))
-        pairs = detector_ranges[detector] = dict({k: int(v) for k, v in
-                                                  map(lambda s: s.split(':'),
-                                                    config.get('detector_values', detector).split(','))})
+        pairs = dict({k: int(v) for k, v in
+                      map(lambda s: s.split(':'),
+                        config.get('detector_values', detector).split(','))})
         detector_ranges[detector] = pairs
         log.debug("ADC {}, pin {} will detect [{}]".format(adc, pin, pairs.values()))
 
