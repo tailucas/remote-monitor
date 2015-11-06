@@ -241,7 +241,7 @@ if __name__ == "__main__":
                 sampled_value = adcs[adc_name].read_voltage(pin)
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
                 log.debug('{}, pin {}: {}v ({})'.format(adc_name, pin, sampled_value, normalized_value))
-                for detector_value, detector_detail in detector_ranges[d]:
+                for detector_value, detector_detail in detector_ranges[d].items():
                     log.debug('Comparing ADC value {} with {} for {}'.format(normalized_value, detector_value, detector_detail))
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
