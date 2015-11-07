@@ -29,8 +29,9 @@ log = logging.getLogger(APP)
 
 ADC_SAMPLE_MAX = 5.0
 HEARTBEAT_INTERVAL_SECONDS = 5
-SAMPLE_INTERVAL_SECONDS = 1
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
+SAMPLE_INTERVAL_SECONDS = 1
+SAMPLE_DEVIATION_TOLERANCE = 4
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
 URL_WORKER_RELAY_CTRL = 'inproc://{}'
@@ -144,7 +145,6 @@ def make_payload(timestamp=None, data=None):
     if timestamp is None:
         timestamp = time.time()
     payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
-    payload['location'] = '#YOLO'
     if data is not None and len(data) > 0:
         payload['data'] = data
     log.debug(json.dumps(payload))
@@ -202,18 +202,17 @@ if __name__ == "__main__":
 
     detector_to_adc = dict()
     detector_count = int(config.get('app', 'detector_count'))
-    detector_ranges = dict()
+    detector_values = dict()
     for nr in range(1, detector_count+1):
         detector = 'd{}'.format(nr)
         adc, pin = tuple(config.get('detector_address', detector).split(':'))
         detector_to_adc[detector] = (adc, int(pin))
-        pairs = dict({int(k): v for k, v in
-                      map(lambda s: s.split(':'),
-                        config.get('detector_values', detector).split(','))})
-        detector_ranges[detector] = pairs
-        keys = pairs.values()
-        keys.sort()
-        log.debug("ADC {} pin {} will detect {}".format(adc, pin, keys))
+        detector_detail, detector_value = tuple(config.get('detector_values', detector).split(':'))
+        detector_values[detector] = (detector_detail, int(detector_value))
+        log.debug("ADC {} pin {} will detect {}".format(adc, pin, detector_detail))
+
+    tamper_label = config.get('app', 'tamper_label')
+    tamper_value = int(config.get('app', 'tamper_value'))
 
     relay_workers = list()
     relay_to_worker = dict()
@@ -235,14 +234,36 @@ if __name__ == "__main__":
     relay_control.start()
 
     try:
+        last_upload = 0
         while True:
+            output_samples = dict()
             for d in detector_to_adc.keys():
                 adc_name, pin = detector_to_adc[d]
                 sampled_value = adcs[adc_name].read_voltage(pin)
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
-                log.debug('{}, pin {}: {}v ({})'.format(adc_name, pin, sampled_value, normalized_value))
-                for detector_value, detector_detail in detector_ranges[d].items():
-                    log.debug('Comparing ADC value {} with {} for {}'.format(normalized_value, detector_value, detector_detail))
+                detector_detail, detector_value = detector_values[d]
+                log.debug('Comparing {}.{}={} ({}v) '
+                          'to {} ({}) (tolerance: {})'.format(adc_name,
+                                                              pin,
+                                                              normalized_value,
+                                                              sampled_value,
+                                                              detector_value,
+                                                              detector_detail,
+                                                              SAMPLE_DEVIATION_TOLERANCE))
+                if abs(normalized_value - detector_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                    continue
+                output_detail = detector_detail
+                if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                    output_detail = '{} {}'.format(detector_detail, tamper_label)
+                output_samples[output_detail] = normalized_value
+            if len(output_samples) > 0:
+                uploader_socket.send(make_payload(timestamp=time.time(), data={'samples': output_samples}))
+                last_upload = time.time()
+            else:
+                inactivity = time.time() - last_upload
+                if inactivity > HEARTBEAT_INTERVAL_SECONDS:
+                    uploader_socket.send(make_payload())
+                    last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
