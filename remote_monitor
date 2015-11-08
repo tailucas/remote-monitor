@@ -259,7 +259,7 @@ if __name__ == "__main__":
                     output_detail = '{} {}'.format(detector_detail, tamper_label)
                 if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
                     log.debug("Debouncing '{}' for another {} seconds.".format(output_detail,
-                                                                               DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail])))
+                                                                               int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail]))))
                     continue
                 else:
                     device_history[output_detail] = time.time()
