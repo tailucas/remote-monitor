@@ -28,6 +28,7 @@ DIR = os.path.abspath(os.path.dirname(__file__))
 log = logging.getLogger(APP)
 
 ADC_SAMPLE_MAX = 5.0
+DEVICE_DEBOUNCE_SECONDS = 60
 HEARTBEAT_INTERVAL_SECONDS = 5
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 SAMPLE_INTERVAL_SECONDS = 1
@@ -235,6 +236,7 @@ if __name__ == "__main__":
 
     try:
         last_upload = 0
+        device_history = dict()
         while True:
             output_samples = dict()
             for d in detector_to_adc.keys():
@@ -255,6 +257,12 @@ if __name__ == "__main__":
                 output_detail = detector_detail
                 if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
                     output_detail = '{} {}'.format(detector_detail, tamper_label)
+                if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
+                    log.debug("Debouncing '{}' for another {} seconds.".format(output_detail,
+                                                                               DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail])))
+                    continue
+                else:
+                    device_history[output_detail] = time.time()
                 output_samples[output_detail] = normalized_value
             if len(output_samples) > 0:
                 uploader_socket.send(make_payload(timestamp=time.time(), data={'samples': output_samples}))
