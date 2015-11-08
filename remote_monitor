@@ -5,6 +5,7 @@ import logging.handlers
 import os
 import pprint
 import pytz
+import signal
 import sys
 import time
 import umsgpack
@@ -31,7 +32,7 @@ ADC_SAMPLE_MAX = 5.0
 DEVICE_DEBOUNCE_SECONDS = 60
 HEARTBEAT_INTERVAL_SECONDS = 5
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
-SAMPLE_INTERVAL_SECONDS = 1
+SAMPLE_INTERVAL_SECONDS = 0.25
 SAMPLE_DEVIATION_TOLERANCE = 4
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
@@ -149,19 +150,29 @@ def make_payload(timestamp=None, data=None):
     payload['location'] = ""
     if data is not None and len(data) > 0:
         payload['data'] = data
-    log.debug(json.dumps(payload))
+        log.info(json.dumps(payload))
+    else:
+        log.debug(json.dumps(payload))
     return umsgpack.packb(payload)
+
+
+def signal_handler(signum, frame):
+    log.warn('Signal {} received.'.format(signum))
+    log.setLevel(logging.DEBUG)
 
 
 if __name__ == "__main__":
     # set up logging
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.INFO)
     syslog_handler = logging.handlers.SysLogHandler(address='/dev/log')
     formatter = logging.Formatter('%(name)s [%(levelname)s] %(message)s')
     syslog_handler.setFormatter(formatter)
     log.addHandler(syslog_handler)
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     log.addHandler(stream_handler)
+
+    # set up signal handlers
+    signal.signal(signal.SIGHUP, signal_handler)
 
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
