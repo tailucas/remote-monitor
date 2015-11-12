@@ -147,7 +147,6 @@ def make_payload(timestamp=None, data=None):
     if timestamp is None:
         timestamp = time.time()
     payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
-    payload['location'] = ""
     if data is not None and len(data) > 0:
         payload['data'] = data
         log.info(json.dumps(payload))
