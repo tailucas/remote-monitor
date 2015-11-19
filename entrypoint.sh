@@ -46,7 +46,10 @@ adduser "${APP_USER}" i2c
 
 # show what i2c buses are available, and grant file permissions
 for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
-  /usr/sbin/i2cdetect -y "$(cut -f2 -d '-' <<< $i)"
+  # reboot to work around issue discussed here:
+  # http://docs.resin.io/#/pages/hardware/i2c-and-spi.md
+  /usr/sbin/i2cdetect -y "$(cut -f2 -d '-' <<< $i)" || curl -X POST --header "Content-Type:application/json" \
+    "${RESIN_SUPERVISOR_ADDRESS}/v1/reboot?apikey=${RESIN_SUPERVISOR_API_KEY}"
   chown "${APP_USER}" "/dev/${i}"
 done
 
