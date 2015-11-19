@@ -167,8 +167,9 @@ if __name__ == "__main__":
     formatter = logging.Formatter('%(name)s [%(levelname)s] %(message)s')
     syslog_handler.setFormatter(formatter)
     log.addHandler(syslog_handler)
-    stream_handler = logging.StreamHandler(stream=sys.stdout)
-    log.addHandler(stream_handler)
+    if sys.stdout.isatty():
+        stream_handler = logging.StreamHandler(stream=sys.stdout)
+        log.addHandler(stream_handler)
 
     # set up signal handlers
     signal.signal(signal.SIGHUP, signal_handler)
