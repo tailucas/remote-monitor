@@ -27,6 +27,8 @@ sys.displayhook = pprint.pprint
 APP = os.path.basename(__file__)
 DIR = os.path.abspath(os.path.dirname(__file__))
 log = logging.getLogger(APP)
+# no console by default
+log.propagate = False
 
 ADC_SAMPLE_MAX = 5.0
 DEVICE_DEBOUNCE_SECONDS = 60
@@ -167,8 +169,9 @@ if __name__ == "__main__":
     formatter = logging.Formatter('%(name)s [%(levelname)s] %(message)s')
     syslog_handler.setFormatter(formatter)
     log.addHandler(syslog_handler)
-    if sys.stdout.isatty() and not ('RESIN' in os.environ and os.environ['RESIN'] == '1'):
+    if sys.stdout.isatty():
         stream_handler = logging.StreamHandler(stream=sys.stdout)
+        stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
 
     # set up signal handlers
