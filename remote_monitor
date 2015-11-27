@@ -291,6 +291,5 @@ if __name__ == "__main__":
     except(KeyboardInterrupt, SystemExit):
         log.info('Closing message queues...')
         uploader_socket.close()
-        relay_control.close()
         log.info('Terminating messaging context...')
         zmq_context.term()
