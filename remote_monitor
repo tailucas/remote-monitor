@@ -22,6 +22,8 @@ from threading import Thread
 from time import sleep
 from zmq import ContextTerminated
 
+# unbuffered STDOUT for print
+sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 sys.displayhook = pprint.pprint
 
 APP = os.path.basename(__file__)
