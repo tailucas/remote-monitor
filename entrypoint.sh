@@ -1,8 +1,22 @@
 #!/bin/bash
 set -eux
 
-# set the timezone
-tzupdate
+# Resin API key
+export RESIN_API_KEY="${RESIN_API_KEY:-$API_KEY_RESIN}"
+
+# Run user
+export APP_USER="${APP_USER:-app}"
+export APP_GROUP="${APP_GROUP:-app}"
+
+TZ_CACHE=/data/localtime
+# a valid symlink
+if [ -h "$TZ_CACHE" ] && [ -e "$TZ_CACHE" ]; then
+  cp -a "$TZ_CACHE" /etc/localtime
+else
+  # set the timezone
+  tzupdate
+  cp -a /etc/localtime "$TZ_CACHE"
+fi
 
 # load I2C
 modprobe i2c-dev
