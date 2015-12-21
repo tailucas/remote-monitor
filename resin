@@ -1,0 +1,102 @@
+#!/usr/bin/python
+import argparse
+import os
+
+from getpass import getpass
+from sys import stderr
+
+from resin.auth import Auth
+from resin.models.application import Application
+from resin.models.device import Device
+
+AUTH_TOKEN_VAR = 'AUTH_TOKEN_RESIN'
+API_KEY_VAR = 'RESIN_API_KEY'
+DEVICE_UUID_VAR = 'RESIN_DEVICE_UUID'
+
+
+def log(message):
+    stderr.writelines('{}\n'.format(message))
+
+
+if __name__ == "__main__":
+    # arguments
+    parser = argparse.ArgumentParser(description='Resin API helper. '
+                                                 'Set environment variable {} with auth token'.format(AUTH_TOKEN_VAR))
+    parser.add_argument('name',
+                        help='Resin named resource.', nargs='?')
+    # named resource is application name
+    app_group = parser.add_mutually_exclusive_group()
+    app_group.add_argument('--get-api-key', action='store_true',
+                        help='Fetch the API key for the named application.')
+    app_group.add_argument('--get-devices', action='store_true',
+                        help='List devices as name:IP pairs for the named application.')
+    app_group.add_argument('--get-app-id', action='store_true',
+                        help='Get the Resin application ID for the named application.')
+    app_group.add_argument('--get-device-ip', action='store_true',
+                        help='Get the IP address for the named device.')
+    args = parser.parse_args()
+
+    # login
+    auth = Auth()
+    auth_token = None
+
+    # environment variables
+    device_uuid = None
+    if DEVICE_UUID_VAR in os.environ:
+        device_uuid = os.environ.get(DEVICE_UUID_VAR)
+    if AUTH_TOKEN_VAR in os.environ:
+        auth_token = os.environ.get(AUTH_TOKEN_VAR)
+        auth.login_with_token(auth_token)
+    elif API_KEY_VAR not in os.environ:
+        auth_token = getpass(prompt='Resin Auth Token:')
+
+    if auth_token:
+        auth.login_with_token(auth_token)
+        log('Authenticated to APIs using {} ({})'.format(auth.who_am_i(), auth.get_email()))
+
+    # log some info about the device context
+    device = Device()
+    device_name = None
+    device_app_name = None
+    if device_uuid:
+        device_name = device.get_name(device_uuid)
+        device_app_name = device.get_application_name(device_uuid)
+        log("Device '{}' is running application '{}'".format(device_name, device_app_name))
+
+    # application as the named resource
+    application = Application()
+    if args.get_api_key:
+        log("Retrieving API key for application '{}'".format(args.name))
+        print application.get_api_key(args.name)
+
+    if args.get_devices:
+        devices = None
+        if args.name:
+            log("Retrieving devices for application '{}'".format(args.name))
+            devices = device.get_all_by_application(args.name)
+        else:
+            log("Retrieving all devices")
+            devices = device.get_all()
+        for d in devices:
+            # work around Device.get_local_ip_address(uuid) eventual
+            # consistency issues with the VPN addresses.
+            print '{}:{}'.format(d['name'], d['ip_address'].split()[0])
+
+    if args.get_app_id:
+        if args.name:
+            log("Retrieving ID for application '{}'".format(args.name))
+            print application.get(args.name)['id']
+        elif device_app_name:
+            log("Retrieving ID for application '{}'".format(device_app_name))
+            print application.get(device_app_name)['id']
+
+    if args.get_device_ip:
+        if args.name:
+            log("Retrieving IP for device '{}'".format(args.name))
+            devices = device.get_by_name(args.name)
+            if len(devices) > 1:
+                raise "'{}' ambiguous across applications.".format(args.name)
+            print devices[0]['ip_address'].split()[0]
+        elif device_uuid:
+            log("Retrieving IP for device '{}'".format(device_name))
+            print device.get(device_uuid)['ip_address'].split()[0]
