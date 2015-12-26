@@ -189,7 +189,7 @@ if __name__ == "__main__":
     for nr in range(1, adc_count+1):
         adc = 'adc{}'.format(nr)
         adc_address = config.get('adc_address', adc).split(',')
-        log.debug("Configuring '{}' @ '{}'".format(adc, adc_address))
+        log.info("Configuring '{}' @ '{}'".format(adc, adc_address))
         adcs[adc] = ADCPi(i2c_bus,
                           int(adc_address[0], 16),
                           int(adc_address[1], 16),
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     for nr in range(1, io_count+1):
         io = 'io{}'.format(nr)
         address = config.get('io_address', io)
-        log.debug("Configuring '{}' @ '{}'".format(io, address))
+        log.info("Configuring '{}' @ '{}'".format(io, address))
         io_port = IoPi(i2c_bus,
                        int(address, 16))
         # set port direction to output
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         relay = 'relay{}'.format(nr)
         io, pin = tuple(config.get('relay_address', relay).split(':'))
         relay_to_io[relay] = (io, int(pin))
-        log.debug("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
+        log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
 
     input_to_adc = dict()
     input_values = dict()
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         elif field in input_locations:
             input_detail = '{} {}'.format(input_locations[field], input_types[field])
         input_values[field] = (input_detail, int(input_normal_values[field]))
-        log.debug("ADC {} pin {} will detect '{}'".format(adc, pin, input_detail))
+        log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_detail))
 
     tamper_label = config.get('app', 'tamper_label')
     tamper_value = int(config.get('app', 'tamper_value'))
