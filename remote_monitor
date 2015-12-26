@@ -224,6 +224,8 @@ if __name__ == "__main__":
 
     input_addresses = dict(config.items('input_address'))
     input_normal_values = dict(config.items('input_normal_values'))
+    tamper_label = config.get('app', 'tamper_label')
+    input_tamper_values = dict(config.items('input_tamper_values'))
     input_types = dict(config.items('input_type'))
     # name overrides location name
     input_names = dict(config.items('input_name'))
@@ -256,9 +258,6 @@ if __name__ == "__main__":
             'type': output_type,
             'location': output_locations[field]
         })
-
-    tamper_label = config.get('app', 'tamper_label')
-    tamper_value = int(config.get('app', 'tamper_value'))
 
     relay_workers = list()
     relay_to_worker = dict()
@@ -304,8 +303,10 @@ if __name__ == "__main__":
                 if abs(normalized_value - input_value) <= SAMPLE_DEVIATION_TOLERANCE:
                     continue
                 output_detail = input_detail
-                if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                    output_detail = '{} {}'.format(input_detail, tamper_label)
+                if i in input_tamper_values:
+                    tamper_value = int(input_tamper_values[i])
+                    if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                        output_detail = '{} {}'.format(input_detail, tamper_label)
                 if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
                     if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                         log.debug("Debouncing '{}' for another {} "
