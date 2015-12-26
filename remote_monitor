@@ -240,6 +240,23 @@ if __name__ == "__main__":
         input_values[field] = (input_detail, int(input_normal_values[field]))
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_detail))
 
+    # construct the device representation
+    output_types = dict(config.items('output_type'))
+    output_locations = dict(config.items('output_location'))
+    device_info = dict()
+    device_info['inputs'] = list()
+    for field, input_type in input_types.items():
+        device_info['inputs'].append({
+            'type': input_type,
+            'location': input_locations[field]
+        })
+    device_info['outputs'] = list()
+    for field, output_type in output_types.items():
+        device_info['outputs'].append({
+            'type': output_type,
+            'location': output_locations[field]
+        })
+
     tamper_label = config.get('app', 'tamper_label')
     tamper_value = int(config.get('app', 'tamper_value'))
 
@@ -306,6 +323,7 @@ if __name__ == "__main__":
                 if inactivity > HEARTBEAT_INTERVAL_SECONDS:
                     uploader_socket.send(make_payload(data={
                         'statistics': {'sample_count': samples_processed},
+                        'device_info': device_info
                     }))
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
