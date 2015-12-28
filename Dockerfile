@@ -40,6 +40,7 @@ RUN pip list --outdated
 
 # zmq
 EXPOSE 5556
+EXPOSE 5558
 
 # SSH
 EXPOSE 22
