@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     git \
     i2c-tools \
-    iptables \
     less \
     libffi-dev \
     libssl-dev \
@@ -39,12 +38,8 @@ RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
 
-# zmq
-EXPOSE 5556
-EXPOSE 5558
-
-# SSH
-EXPOSE 22
+# ssh, zmq
+EXPOSE 22 5556 5558
 
 # sshd configuration
 RUN mkdir /var/run/sshd
