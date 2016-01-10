@@ -272,6 +272,10 @@ if __name__ == "__main__":
 
     samples_processed = 0
 
+    #TODO: remove
+    meter_high = False
+    meter_count = 0
+
     try:
         last_upload = 0
         device_history = dict()
@@ -293,7 +297,18 @@ if __name__ == "__main__":
                                                                   input_detail,
                                                                   SAMPLE_DEVIATION_TOLERANCE))
                 if abs(normalized_value - input_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                    #TODO: remove
+                    if 'meter' in input_detail.lower() and meter_high:
+                        meter_high = False
                     continue
+
+                #TODO: remove
+                if 'meter' in input_detail.lower() and not meter_high:
+                    meter_high = True
+                    meter_count += 1
+                    #HACK
+                    normalized_value = meter_count
+
                 output_detail = input_detail
                 if i in input_tamper_values:
                     tamper_value = int(input_tamper_values[i])
