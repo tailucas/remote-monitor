@@ -127,23 +127,25 @@ class RelayControl(Thread):
 class Uploader(Thread):
 
     def __init__(self):
-        super(Uploader, self).__init__()
+        super(Uploader, self).__init__(name=self.__class__.__name__)
         self.daemon = True
-        # Socket to talk to accept samples
-        self.samples = zmq_context.socket(zmq.PULL)
-        self.samples.bind(URL_WORKER_UPLOADER)
+        # inproc socket to accept messages to publish
+        # to the outside world
+        self.inproc_pull = zmq_context.socket(zmq.PULL)
+        self.inproc_pull.bind(URL_WORKER_UPLOADER)
 
     def run(self):
         # Socket to talk to the outside world
         publisher = zmq_context.socket(zmq.PUB)
-        publisher.bind('tcp://*:{port}'.format(port=config.get('zmq', 'publisher_port')))
+        publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
+                                                  port=config.get('zmq', 'pubsub_port')))
         while True:
             try:
-                publisher.send(self.samples.recv())
+                publisher.send(self.inproc_pull.recv())
             except ContextTerminated:
                 break
             except Exception:
-                log.exception(self.__class__.__name__)
+                log.exception(self.name)
                 continue
 
 
