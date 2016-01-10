@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
     # process configuration
     adcs = dict()
-    for adc, address in config.get('app', 'adc_address'):
+    for adc, address in config.get('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
         adcs[adc] = ADCPi(i2c_bus,
                           int(address[0], 16),
@@ -193,7 +193,7 @@ if __name__ == "__main__":
                           12)
 
     ios = dict()
-    for io, address in config.get('app', 'io_address'):
+    for io, address in config.get('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
         io_port = IoPi(i2c_bus,
                        int(address, 16))
@@ -206,7 +206,7 @@ if __name__ == "__main__":
         ios[io] = io_port
 
     relay_to_io = dict()
-    for relay, address in config.items('app', 'relay_address'):
+    for relay, address in config.items('relay_address'):
         io, pin = tuple(address.split(':'))
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
