@@ -187,7 +187,7 @@ if __name__ == "__main__":
     adcs = dict()
     for adc, address in config.items('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
-        address = address.split(':')
+        address = address.split(',')
         adcs[adc] = ADCPi(i2c_bus,
                           int(address[0], 16),
                           int(address[1], 16),
