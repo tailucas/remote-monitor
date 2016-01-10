@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
     # process configuration
     adcs = dict()
-    for adc, address in config.get('adc_address'):
+    for adc, address in config.items('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
         adcs[adc] = ADCPi(i2c_bus,
                           int(address[0], 16),
@@ -193,7 +193,7 @@ if __name__ == "__main__":
                           12)
 
     ios = dict()
-    for io, address in config.get('io_address'):
+    for io, address in config.items('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
         io_port = IoPi(i2c_bus,
                        int(address, 16))
