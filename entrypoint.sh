@@ -56,7 +56,6 @@ echo "$DEVICE_NAME" > /etc/hostname
 /etc/init.d/hostname.sh start
 # update hosts
 echo "127.0.1.1 ${DEVICE_NAME}" >> /etc/hosts
-unset DEVICE_NAME
 
 if [ -n "${RSYSLOG_SERVER:-}" ] && ! grep -q "$RSYSLOG_SERVER" /etc/rsyslog.conf; then
   echo "*.*          @${RSYSLOG_SERVER}" | tee -a /etc/rsyslog.conf

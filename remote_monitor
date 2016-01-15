@@ -11,6 +11,8 @@ import time
 import umsgpack
 import zmq
 
+import boto.ec2.cloudwatch
+
 from ABE_helpers import ABEHelpers
 from ABE_ADCPi import ADCPi
 from ABE_IoPi import IoPi
@@ -281,6 +283,8 @@ if __name__ == "__main__":
     last_metric = time.time()
     stathat = StatHat()
     stat_key = config.get('stat', 'key')
+    cloudwatch = boto.ec2.cloudwatch.connect_to_region(region_name=config.get('aws', 'region'))
+    metric_namespace = '{}:{}'.format(config.get('metric', 'namespace'), APP)
 
     try:
         last_upload = 0
@@ -318,6 +322,11 @@ if __name__ == "__main__":
                     if time.time() - last_metric >= 60:
                         log.debug('{} metered {}'.format(input_detail, meter_count))
                         stathat.ez_post_count(stat_key, input_detail, meter_count)
+                        cloudwatch.put_metric_data(namespace=metric_namespace,
+                                                   name=input_detail,
+                                                   value=meter_count,
+                                                   timestamp=datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc),
+                                                   unit="Count")
                         meter_count = 0
                         last_metric = time.time()
                     continue
