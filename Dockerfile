@@ -28,7 +28,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsyslog \
     ssl-cert \
     supervisor \
-    vim
+    vim \
+    wget
 
 COPY ./config/pip_freeze /tmp/
 # update pip
@@ -47,5 +48,7 @@ RUN mkdir /root/.ssh/
 
 COPY . /app
 COPY ./entrypoint.sh /
+RUN wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py -O /app/awslogs-agent-setup.py
+RUN python /app/awslogs-agent-setup.py -n -r "eu-west-1" -c /app/config/awslogs-config
 
 ENTRYPOINT ["/entrypoint.sh"]
