@@ -25,8 +25,6 @@ from threading import Thread
 from time import sleep
 from zmq import ContextTerminated
 
-from stathat import StatHat
-
 # unbuffered STDOUT for print
 sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0)
 sys.displayhook = pprint.pprint
@@ -281,8 +279,6 @@ if __name__ == "__main__":
     meter_high = False
     meter_count = 0
     last_metric = time.time()
-    stathat = StatHat()
-    stat_key = config.get('stat', 'key')
     cloudwatch = boto.ec2.cloudwatch.connect_to_region(region_name=config.get('aws', 'region'))
     metric_namespace = '{}:{}'.format(config.get('metric', 'namespace'), APP)
 
@@ -321,7 +317,6 @@ if __name__ == "__main__":
                         normalized_value = meter_count
                     if time.time() - last_metric >= 60:
                         log.debug('{} metered {}'.format(input_detail, meter_count))
-                        stathat.ez_post_count(stat_key, input_detail, meter_count)
                         cloudwatch.put_metric_data(namespace=metric_namespace,
                                                    name=input_detail,
                                                    value=meter_count,
