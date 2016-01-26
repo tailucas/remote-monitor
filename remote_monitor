@@ -244,6 +244,7 @@ if __name__ == "__main__":
     device_info['inputs'] = list()
     for field, input_type in input_types.items():
         device_info['inputs'].append({
+            'name': input_names[field],
             'type': input_type,
             'location': input_locations[field]
         })
