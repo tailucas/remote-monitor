@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY ./config/pip_freeze /tmp/
 # pip 8
-RUN python pipstrap.py
+RUN python ./pipstrap.py
 RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
