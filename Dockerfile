@@ -32,13 +32,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     wget
 
-COPY ./config/pip_freeze /tmp/
-# pip 8
-RUN python ./pipstrap.py
-RUN pip install -r /tmp/pip_freeze
-# show outdated packages since the freeze
-RUN pip list --outdated
-
 # ssh, zmq
 EXPOSE 22 5556 5558
 
@@ -48,6 +41,13 @@ RUN mkdir /root/.ssh/
 
 COPY . /app
 COPY ./entrypoint.sh /
+
+COPY ./config/pip_freeze /tmp/
+# pip 8
+RUN python /app/pipstrap.py
+RUN pip install -r /tmp/pip_freeze
+# show outdated packages since the freeze
+RUN pip list --outdated
 
 # awslogs
 RUN wget https://s3.amazonaws.com/aws-cloudwatch/downloads/latest/awslogs-agent-setup.py -O /app/awslogs-agent-setup.py
