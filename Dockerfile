@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     psmisc \
     python-dbus \
+    python-pip \
     python2.7 \
     python2.7-dev \
     python-smbus \
