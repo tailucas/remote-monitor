@@ -30,7 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ssl-cert \
     supervisor \
     vim \
-    wget
+    wget \
+    # pip 8
+    && python /app/pipstrap.py
 
 # ssh, zmq
 EXPOSE 22 5556 5558
@@ -43,8 +45,6 @@ COPY . /app
 COPY ./entrypoint.sh /
 
 COPY ./config/pip_freeze /tmp/
-# pip 8
-RUN python /app/pipstrap.py
 RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
