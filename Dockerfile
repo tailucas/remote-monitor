@@ -43,10 +43,8 @@ COPY . /app
 COPY ./entrypoint.sh /
 
 COPY ./config/pip_freeze /tmp/
-
-RUN pip install --ignore-installed setuptools
-RUN pip install --ignore-installed pip && pip install pip==8.0.2
-
+# pip 8
+RUN python /app/pipstrap.py
 RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
