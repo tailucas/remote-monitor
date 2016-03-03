@@ -3,6 +3,8 @@ FROM resin/rpi-raspbian:wheezy
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 
+COPY ./pipstrap.py /tmp/
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     cpp \
@@ -32,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     wget \
     # pip 8
-    && python /app/pipstrap.py
+    && python /tmp/pipstrap.py
 
 # ssh, zmq
 EXPOSE 22 5556 5558
