@@ -229,7 +229,8 @@ if __name__ == "__main__":
             'name': input_name,
             'type': input_type,
             'location': input_location,
-            'device_key': '{} {} ({})'.format(input_name, input_type, input_location)
+            'device_key': '{} {} ({})'.format(input_name, input_type, input_location),
+            'device_label': '{} {}'.format(input_name, input_type)
         }
         device_info['inputs'].append(device_description)
         input_devices[field] = device_description
@@ -323,20 +324,22 @@ if __name__ == "__main__":
                         meter_history[device_key] = (0, True)
                         active_devices[device_key]['sample_value'] = meter_value
                 else:
-                    output_detail = device_key
+                    device_event_distinction = device_key
                     if i in input_tamper_values:
                         tamper_value = int(input_tamper_values[i])
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                            output_detail = '{} {}'.format(device_key, tamper_label)
-                    if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
+                            active_devices[device_key]['abnormality'] = tamper_label
+                            device_event_distinction = '{} {}'.format(device_key, tamper_label)
+                    if device_event_distinction in device_history and time.time() - device_history[device_event_distinction] < DEVICE_DEBOUNCE_SECONDS:
+                        # sample to avoid log spam
                         if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                             log.debug("Debouncing '{}' for another {} "
-                                      "seconds.".format(output_detail,
-                                                        int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail]))))
+                                      "seconds.".format(device_event_distinction,
+                                                        int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[device_event_distinction]))))
                         continue
                     else:
-                        device_history[output_detail] = time.time()
-                    output_samples[output_detail] = int(normalized_value)
+                        device_history[device_event_distinction] = time.time()
+                    output_samples[device_key] = int(normalized_value)
                     active_devices[device_key]['sample_value'] = int(normalized_value)
             if len(active_devices) > 0:
                 uploader_socket.send(make_payload(timestamp=time.time(),
