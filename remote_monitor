@@ -288,7 +288,7 @@ if __name__ == "__main__":
                 sampled_value = adcs[adc_name].read_voltage(pin)
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
                 input_value = int(input_normal_values[i])
-                device_key = input_devices[i]
+                device_key = input_devices[i]['device_key']
                 samples_processed += 1
                 if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                     log.debug('Comparing {}.{}={} ({}v) '
@@ -307,7 +307,7 @@ if __name__ == "__main__":
                     continue
 
                 # a device has now gone out of normal range
-                active_devices[device_key] = input_devices[field]
+                active_devices[device_key] = input_devices[i]
 
                 if 'meter' in device_key.lower():
                     if device_key not in meter_history:
