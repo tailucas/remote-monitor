@@ -323,8 +323,12 @@ if __name__ == "__main__":
                         meters_last_posted = time.time()
                         meter_history[device_key] = (0, True)
                         active_devices[device_key]['sample_value'] = meter_value
+                    else:
+                        continue
                 else:
                     device_event_distinction = device_key
+                    output_samples[device_key] = int(normalized_value)
+                    active_devices[device_key]['sample_value'] = int(normalized_value)
                     if i in input_tamper_values:
                         tamper_value = int(input_tamper_values[i])
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
@@ -339,8 +343,6 @@ if __name__ == "__main__":
                         continue
                     else:
                         device_history[device_event_distinction] = time.time()
-                    output_samples[device_key] = int(normalized_value)
-                    active_devices[device_key]['sample_value'] = int(normalized_value)
             if len(active_devices) > 0:
                 uploader_socket.send(make_payload(timestamp=time.time(),
                                                   data={
