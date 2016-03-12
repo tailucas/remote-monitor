@@ -11,8 +11,6 @@ import time
 import umsgpack
 import zmq
 
-import boto.ec2.cloudwatch
-
 from ABE_helpers import ABEHelpers
 from ABE_ADCPi import ADCPi
 from ABE_IoPi import IoPi
@@ -214,46 +212,42 @@ if __name__ == "__main__":
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
 
-    input_to_adc = dict()
-    input_values = dict()
-
-    input_addresses = dict(config.items('input_address'))
-    input_normal_values = dict(config.items('input_normal_values'))
-    tamper_label = config.get('app', 'tamper_label')
-    input_tamper_values = dict(config.items('input_tamper_values'))
     input_types = dict(config.items('input_type'))
     # name overrides location name
     input_names = dict(config.items('input_name'))
     input_locations = dict(config.items('input_location'))
-    for field in input_addresses:
-        adc, pin = tuple(input_addresses[field].split(':'))
-        input_to_adc[field] = (adc, int(pin))
-        # get the normal value
-        input_detail = input_types[field]
-        if field in input_names:
-            input_detail = '{} {}'.format(input_names[field], input_types[field])
-        elif field in input_locations:
-            input_detail = '{} {}'.format(input_locations[field], input_types[field])
-        input_values[field] = (input_detail, int(input_normal_values[field]))
-        log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_detail))
-
     # construct the device representation
+    input_devices = dict()
     output_types = dict(config.items('output_type'))
     output_locations = dict(config.items('output_location'))
     device_info = dict()
     device_info['inputs'] = list()
     for field, input_type in input_types.items():
-        device_info['inputs'].append({
-            'name': input_names[field],
+        input_name = input_names[field]
+        input_location = input_locations[field]
+        device_description = {
+            'name': input_name,
             'type': input_type,
-            'location': input_locations[field]
-        })
+            'location': input_location,
+            'device_key': '{} {} ({})'.format(input_name, input_type, input_location)
+        }
+        device_info['inputs'].append(device_description)
+        input_devices[field] = device_description
     device_info['outputs'] = list()
     for field, output_type in output_types.items():
         device_info['outputs'].append({
             'type': output_type,
-            'location': output_locations[field]
+            'location': output_locations[field],
+            'device_key': '{} {}'.format(output_locations[field], output_type)
         })
+
+    input_addresses = dict(config.items('input_address'))
+    input_to_adc = dict()
+    for field in input_addresses:
+        adc, pin = tuple(input_addresses[field].split(':'))
+        input_to_adc[field] = (adc, int(pin))
+        # get the normal value
+        log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
     relay_workers = list()
     relay_to_worker = dict()
@@ -276,23 +270,25 @@ if __name__ == "__main__":
 
     samples_processed = 0
 
-    #TODO: remove
-    meter_high = False
-    meter_count = 0
-    last_metric = time.time()
-    cloudwatch = boto.ec2.cloudwatch.connect_to_region(region_name=config.get('aws', 'region'))
-    metric_namespace = '{}:{}'.format(config.get('metric', 'namespace'), APP)
+    meter_history = dict()
+    meters_last_posted = 0
+
+    input_normal_values = dict(config.items('input_normal_values'))
+    tamper_label = config.get('app', 'tamper_label')
+    input_tamper_values = dict(config.items('input_tamper_values'))
 
     try:
         last_upload = 0
         device_history = dict()
         while True:
+            active_devices = dict()
             output_samples = dict()
             for i in input_to_adc.keys():
                 adc_name, pin = input_to_adc[i]
                 sampled_value = adcs[adc_name].read_voltage(pin)
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
-                input_detail, input_value = input_values[i]
+                input_value = int(input_normal_values[i])
+                device_key = input_devices[i]
                 samples_processed += 1
                 if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                     log.debug('Comparing {}.{}={} ({}v) '
@@ -301,48 +297,53 @@ if __name__ == "__main__":
                                                                   normalized_value,
                                                                   sampled_value,
                                                                   input_value,
-                                                                  input_detail,
+                                                                  device_key,
                                                                   SAMPLE_DEVIATION_TOLERANCE))
                 if abs(normalized_value - input_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                    #TODO: remove
-                    if 'meter' in input_detail.lower() and meter_high:
-                        meter_high = False
+                    if 'meter' in device_key.lower() and device_key in meter_history:
+                        meter_value, meter_state = meter_history[device_key]
+                        meter_history[device_key] = (meter_value, False)
+                    # nothing else to unset here, next input now
                     continue
 
-                #TODO: remove
-                if 'meter' in input_detail.lower():
-                    if not meter_high:
-                        meter_high = True
-                        meter_count += 1
-                        #HACK
-                        normalized_value = meter_count
-                    if time.time() - last_metric >= 60:
-                        log.debug('{} metered {}'.format(input_detail, meter_count))
-                        cloudwatch.put_metric_data(namespace=metric_namespace,
-                                                   name=input_detail,
-                                                   value=meter_count,
-                                                   timestamp=datetime.utcfromtimestamp(time.time()).replace(tzinfo=pytz.utc),
-                                                   unit="Count")
-                        meter_count = 0
-                        last_metric = time.time()
-                    continue
+                # a device has now gone out of normal range
+                active_devices[device_key] = input_devices[field]
 
-                output_detail = input_detail
-                if i in input_tamper_values:
-                    tamper_value = int(input_tamper_values[i])
-                    if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                        output_detail = '{} {}'.format(input_detail, tamper_label)
-                if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
-                    if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
-                        log.debug("Debouncing '{}' for another {} "
-                                  "seconds.".format(output_detail,
-                                                    int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail]))))
-                    continue
+                if 'meter' in device_key.lower():
+                    if device_key not in meter_history:
+                        meter_history[device_key] = (1, True)
+                    meter_value, meter_state = meter_history[device_key]
+                    # latch
+                    if not meter_state:
+                        meter_history[device_key] = (meter_value+1, True)
+                    if time.time() - meters_last_posted >= int(config.get('app', 'meter_sample_interval_seconds')):
+                        meter_value, meter_state = meter_history[device_key]
+                        log.debug('{} metered {}'.format(device_key, meter_value))
+                        meters_last_posted = time.time()
+                        meter_history[device_key] = (0, True)
+                        active_devices[device_key]['sample_value'] = meter_value
                 else:
-                    device_history[output_detail] = time.time()
-                output_samples[output_detail] = int(normalized_value)
-            if len(output_samples) > 0:
-                uploader_socket.send(make_payload(timestamp=time.time(), data={'samples': output_samples}))
+                    output_detail = device_key
+                    if i in input_tamper_values:
+                        tamper_value = int(input_tamper_values[i])
+                        if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                            output_detail = '{} {}'.format(device_key, tamper_label)
+                    if output_detail in device_history and time.time() - device_history[output_detail] < DEVICE_DEBOUNCE_SECONDS:
+                        if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
+                            log.debug("Debouncing '{}' for another {} "
+                                      "seconds.".format(output_detail,
+                                                        int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[output_detail]))))
+                        continue
+                    else:
+                        device_history[output_detail] = time.time()
+                    output_samples[output_detail] = int(normalized_value)
+                    active_devices[device_key]['sample_value'] = int(normalized_value)
+            if len(active_devices) > 0:
+                uploader_socket.send(make_payload(timestamp=time.time(),
+                                                  data={
+                                                      'samples': output_samples,
+                                                      'active_devices': active_devices
+                                                  }))
                 last_upload = time.time()
             else:
                 inactivity = time.time() - last_upload
