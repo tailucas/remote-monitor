@@ -51,7 +51,4 @@ RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
 
-# awslogs
-RUN /app/awslogs-agent-setup.sh
-
 ENTRYPOINT ["/entrypoint.sh"]
