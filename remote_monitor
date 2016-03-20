@@ -142,23 +142,23 @@ class Uploader(Thread):
                                                   port=config.get('zmq', 'pubsub_port')))
         while True:
             try:
-                publisher.send(self.inproc_pull.recv())
+                publisher.send(Uploader.make_payload(self.inproc_pull.recv_pyobj()))
             except ContextTerminated:
                 break
             except Exception:
                 log.exception(self.name)
                 continue
 
-
-def make_payload(timestamp=None, data=None):
-    payload = dict()
-    if timestamp is None:
-        timestamp = time.time()
-    payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
-    if data is not None and len(data) > 0:
-        payload['data'] = data
-    log.debug(json.dumps(payload))
-    return umsgpack.packb(payload)
+    @staticmethod
+    def make_payload(timestamp=None, data=None):
+        payload = dict()
+        if timestamp is None:
+            timestamp = time.time()
+        payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
+        if data is not None and len(data) > 0:
+            payload['data'] = data
+        log.debug(json.dumps(payload))
+        return umsgpack.packb(payload)
 
 
 def signal_handler(signum, frame):
@@ -348,19 +348,18 @@ if __name__ == "__main__":
                     else:
                         device_history[device_event_distinction] = time.time()
             if len(active_devices) > 0:
-                uploader_socket.send(make_payload(timestamp=time.time(),
-                                                  data={
-                                                      'samples': output_samples,
-                                                      'active_devices': active_devices
-                                                  }))
+                uploader_socket.send_pyobj({
+                    'samples': output_samples,
+                    'active_devices': active_devices
+                })
                 last_upload = time.time()
             else:
                 inactivity = time.time() - last_upload
                 if inactivity > HEARTBEAT_INTERVAL_SECONDS:
-                    uploader_socket.send(make_payload(data={
+                    uploader_socket.send_pyobj({
                         'statistics': {'sample_count': samples_processed},
                         'device_info': device_info
-                    }))
+                    })
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, SystemExit):
