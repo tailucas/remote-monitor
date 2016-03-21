@@ -142,7 +142,9 @@ class Uploader(Thread):
                                                   port=config.get('zmq', 'pubsub_port')))
         while True:
             try:
-                publisher.send(Uploader.make_payload(self.inproc_pull.recv_pyobj()))
+                publisher.send(Uploader.make_payload(
+                    timestamp=None,
+                    data=self.inproc_pull.recv_pyobj()))
             except ContextTerminated:
                 break
             except Exception:
