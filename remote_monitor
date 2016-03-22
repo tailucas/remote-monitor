@@ -339,7 +339,6 @@ if __name__ == "__main__":
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
                             input_device['abnormality'] = tamper_label
                             device_event_distinction = '{} {}'.format(device_key, tamper_label)
-                    active_devices.append(input_device)
                     if device_event_distinction in device_history and time.time() - device_history[device_event_distinction] < DEVICE_DEBOUNCE_SECONDS:
                         # sample to avoid log spam
                         if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
@@ -349,6 +348,8 @@ if __name__ == "__main__":
                         continue
                     else:
                         device_history[device_event_distinction] = time.time()
+                    # add the input device to the 'active' list
+                    active_devices.append(input_device)
             if len(active_devices) > 0:
                 uploader_socket.send_pyobj({
                     'samples': output_samples,
