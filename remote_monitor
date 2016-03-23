@@ -239,10 +239,11 @@ if __name__ == "__main__":
         input_devices[field] = device_description
     device_info['outputs'] = list()
     for field, output_type in output_types.items():
+        output_location = output_locations[field]
         device_info['outputs'].append({
             'type': output_type,
-            'location': output_locations[field],
-            'device_key': '{} {}'.format(output_locations[field], output_type)
+            'location': output_location,
+            'device_key': '{} {}'.format(output_location, output_type)
         })
 
     input_addresses = dict(config.items('input_address'))
