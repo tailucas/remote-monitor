@@ -30,6 +30,13 @@ sys.displayhook = pprint.pprint
 
 APP = os.path.basename(__file__)
 DIR = os.path.abspath(os.path.dirname(__file__))
+# PID file check
+pidfile = '/var/run/{}.pid'.format(APP)
+if os.path.isfile(pidfile):
+    print '{} already exists.'.format(pidfile)
+    sys.exit(1)
+file(pidfile, 'w').write(str(os.getpid()))
+
 log = logging.getLogger(APP)
 # no console by default
 log.propagate = False
@@ -371,3 +378,5 @@ if __name__ == "__main__":
         uploader_socket.close()
         log.info('Terminating messaging context...')
         zmq_context.term()
+    finally:
+        os.unlink(pidfile)
