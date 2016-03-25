@@ -345,7 +345,7 @@ if __name__ == "__main__":
                     if i in input_tamper_values:
                         tamper_value = int(input_tamper_values[i])
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                            input_device['abnormality'] = tamper_label
+                            input_device['event_detail'] = tamper_label
                             device_event_distinction = '{} {}'.format(device_key, tamper_label)
                     if device_event_distinction in device_history and time.time() - device_history[device_event_distinction] < DEVICE_DEBOUNCE_SECONDS:
                         # sample to avoid log spam
