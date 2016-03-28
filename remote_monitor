@@ -33,8 +33,19 @@ DIR = os.path.abspath(os.path.dirname(__file__))
 # PID file check
 pidfile = '/var/run/{}.pid'.format(APP)
 if os.path.isfile(pidfile):
-    print '{} already exists.'.format(pidfile)
-    sys.exit(1)
+    pid = int(open(pidfile, 'r').read())
+    message = '{} already exists containing PID {}.'.format(pidfile, pid)
+    proc_path = '/proc/{}/cmdline'.format(pid)
+    # existing process?
+    if os.path.isfile(proc_path):
+        proc_info = open(proc_path, 'r').read()
+        if 'python' in proc_info and APP in proc_info:
+            print '{} is already running. {}'.format(APP, message)
+            sys.exit(1)
+    print '{} Removing stale PID file.'.format(message)
+    # what's in the PID file is stale, destroy it
+    os.unlink(pidfile)
+# create a new PID file
 file(pidfile, 'w').write(str(os.getpid()))
 
 log = logging.getLogger(APP)
@@ -57,6 +68,7 @@ config.optionxform = str
 config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 
 zmq_context = zmq.Context()
+zmq_context.setsockopt(zmq.LINGER, 0)
 
 
 class Relay(Thread):
@@ -92,6 +104,7 @@ class Relay(Thread):
                         sleep(float(delay))
                     self._io.write_pin(self._pin, 0)
             except ContextTerminated:
+                self.socket.close()
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
@@ -126,6 +139,9 @@ class RelayControl(Thread):
                             log.debug('Sending control for {}: [{}]'.format(relay, relay_ctrl))
                             self._sockets[relay].send_pyobj(relay_ctrl)
             except ContextTerminated:
+                self.socket.close()
+                for socket in self._sockets.values():
+                    socket.close()
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
@@ -153,6 +169,8 @@ class Uploader(Thread):
                     timestamp=None,
                     data=self.inproc_pull.recv_pyobj()))
             except ContextTerminated:
+                self.inproc_pull.close()
+                publisher.close()
                 break
             except Exception:
                 log.exception(self.name)
@@ -170,9 +188,25 @@ class Uploader(Thread):
         return umsgpack.packb(payload)
 
 
-def signal_handler(signum, frame):
-    log.warn('Signal {} received.'.format(signum))
-    log.setLevel(logging.DEBUG)
+class SignalHandler:
+
+    def __init__(self):
+        self.last_signal = 0
+        signal.signal(signal.SIGTERM, self.terminate)
+        signal.signal(signal.SIGHUP, self.hup)
+
+    def hup(self, signum, frame):
+        log.warn('Signal {} received.'.format(signum))
+        self.last_signal = signum
+        if log.getEffectiveLevel() == logging.INFO:
+            log.setLevel(logging.DEBUG)
+        elif log.getEffectiveLevel() == logging.DEBUG:
+            log.setLevel(logging.INFO)
+
+    def terminate(self, signum, frame):
+        log.warn('Signal {} received.'.format(signum))
+        self.last_signal = signum
+        raise RuntimeWarning()
 
 
 if __name__ == "__main__":
@@ -186,9 +220,6 @@ if __name__ == "__main__":
         stream_handler = logging.StreamHandler(stream=sys.stdout)
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
-
-    # set up signal handlers
-    signal.signal(signal.SIGHUP, signal_handler)
 
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
@@ -289,6 +320,9 @@ if __name__ == "__main__":
     tamper_label = config.get('app', 'tamper_label')
     input_tamper_values = dict(config.items('input_tamper_values'))
 
+    # set up signal handlers
+    signal_handler = SignalHandler()
+
     try:
         last_upload = 0
         device_history = dict()
@@ -373,10 +407,13 @@ if __name__ == "__main__":
                     })
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
-    except(KeyboardInterrupt, SystemExit):
-        log.info('Closing message queues...')
+    except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
         uploader_socket.close()
-        log.info('Terminating messaging context...')
         zmq_context.term()
     finally:
+        log.info('Removing PID file {}'.format(pidfile))
         os.unlink(pidfile)
+
+    log.info('Exiting with code {}'.format(signal_handler.last_signal))
+    # exit using the signal, if any
+    sys.exit(signal_handler.last_signal)
