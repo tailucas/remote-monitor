@@ -110,7 +110,7 @@ for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
   # reboot to work around issue discussed here:
   # http://docs.resin.io/#/pages/hardware/i2c-and-spi.md
   /usr/sbin/i2cdetect -y "$(cut -f2 -d '-' <<< $i)" || curl -X POST --header "Content-Type:application/json" \
-    --data "{"appId": "$APP_ID"}" \
+    --data '{"appId": "$APP_ID"}' \
     "${RESIN_SUPERVISOR_ADDRESS}/v1/restart?apikey=${RESIN_SUPERVISOR_API_KEY}"
   chown "${APP_USER}" "/dev/${i}"
 done
