@@ -60,7 +60,8 @@ SAMPLE_INTERVAL_SECONDS = 0.1
 SAMPLE_DEVIATION_TOLERANCE = 4
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
-URL_WORKER_RELAY_CTRL = 'inproc://{}'
+URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
+URL_WORKER_RELAY = 'inproc://relay-{}'
 
 
 config = ConfigParser()
@@ -71,6 +72,86 @@ zmq_context = zmq.Context()
 zmq_context.setsockopt(zmq.LINGER, 0)
 
 
+class Uploader(Thread):
+
+    def __init__(self):
+        super(Uploader, self).__init__(name=self.__class__.__name__)
+        self.daemon = True
+        # inproc socket to accept messages to publish
+        # to the outside world
+        self.inproc_pull = zmq_context.socket(zmq.PULL)
+        self.inproc_pull.bind(URL_WORKER_UPLOADER)
+
+    def run(self):
+        # Socket to talk to the outside world
+        publisher = zmq_context.socket(zmq.PUB)
+        publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
+                                                  port=config.get('zmq', 'pubsub_port')))
+        while True:
+            try:
+                publisher.send(Uploader.make_payload(
+                    timestamp=None,
+                    data=self.inproc_pull.recv_pyobj()))
+            except ContextTerminated:
+                self.inproc_pull.close()
+                publisher.close()
+                break
+            except Exception:
+                log.exception(self.__class__.__name__)
+                continue
+
+    @staticmethod
+    def make_payload(timestamp=None, data=None):
+        payload = dict()
+        if timestamp is None:
+            timestamp = time.time()
+        payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
+        if data is not None and len(data) > 0:
+            payload['data'] = data
+        log.debug(json.dumps(payload))
+        return umsgpack.packb(payload)
+
+
+class DeviceActivator(Thread):
+
+    def __init__(self):
+        super(DeviceActivator, self).__init__(name=self.__class__.__name__)
+        self.daemon = True
+
+        self.listener = zmq_context.socket(zmq.PULL)
+        # what to do with device activations
+        self.notifier = zmq_context.socket(zmq.PUSH)
+
+    def run(self):
+        # outputs
+        self.relay_control.connect(URL_WORKER_RELAY_CTRL)
+        # Socket to talk to the outside world
+        self.listener.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
+                                                      port=config.get('zmq', 'pushpull_port')))
+        while True:
+            try:
+                event = umsgpack.unpackb(self.listener.recv())
+                log.debug(event)
+                if 'data' not in event:
+                    log.warn('Unknown event data: {}'.format(event))
+                    continue
+                event_data = event['data']
+                if 'trigger_output' in event_data:
+                    output_type = event_data['trigger_output']['type']
+                    if 'input_context' not in event_data:
+                        log.warn('{} requested without context, ignoring.'.format(output_type))
+                        continue
+                    # send all output activations to the relay control, which will filter accordingly
+                    self.relay_control.send_pyobj(event_data['trigger_output']['device_key'])
+            except ContextTerminated:
+                self.listener.close()
+                self.relay_control.close()
+                break
+            except Exception:
+                log.exception(self.__class__.__name__)
+                continue
+
+
 class Relay(Thread):
 
     def __init__(self, relay_name, io, pin):
@@ -79,7 +160,7 @@ class Relay(Thread):
         self._name = relay_name
         self._io = io
         self._pin = pin
-        self._zmq_url = URL_WORKER_RELAY_CTRL.format(relay_name)
+        self._zmq_url = URL_WORKER_RELAY.format(relay_name)
         self.socket = zmq_context.socket(zmq.PULL)
         self.socket.bind(self._zmq_url)
 
@@ -118,26 +199,31 @@ class RelayControl(Thread):
         self.daemon = True
         # Pull socket to receive relay control commands
         self.socket = zmq_context.socket(zmq.PULL)
-        self.socket.bind('tcp://*:{port}'.format(port=config.get('zmq', 'relay_port')))
+        self.socket.bind(URL_WORKER_RELAY_CTRL)
         # Push socket to control relays
         self._sockets = dict()
         for relay, worker_url in relay_mappings.items():
             socket = zmq_context.socket(zmq.PUSH)
             self._sockets[relay] = socket
             socket.connect(worker_url)
+        self._output_to_relay = dict()
 
     def run(self):
         while True:
             try:
-                data = umsgpack.unpackb(self.socket.recv())
-                log.debug("Relay control '{}'".format(data))
-                if 'relays' in data:
-                    relays_to_activate = data['relays']
-                    for relay in relays_to_activate.keys():
-                        if relay in self._sockets:
-                            relay_ctrl = relays_to_activate[relay]
-                            log.debug('Sending control for {}: [{}]'.format(relay, relay_ctrl))
-                            self._sockets[relay].send_pyobj(relay_ctrl)
+                device_key = self.socket.recv_pyobj()
+                log.debug("Relay event for '{}'".format(device_key))
+                if device_key not in self._output_to_relay:
+                    log.debug("'{}' is not configured for relay control".format(device_key))
+                    continue
+                relay = self._output_to_relay[device_key]
+                if relay in self._sockets:
+                    log.info("'{}' => '{}'".format(device_key, relay))
+                    self._sockets[relay].send_pyobj({
+                        'state': True
+                    })
+                else:
+                    log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
             except ContextTerminated:
                 self.socket.close()
                 for socket in self._sockets.values():
@@ -147,45 +233,13 @@ class RelayControl(Thread):
                 log.exception(self.__class__.__name__)
                 continue
 
-
-class Uploader(Thread):
-
-    def __init__(self):
-        super(Uploader, self).__init__(name=self.__class__.__name__)
-        self.daemon = True
-        # inproc socket to accept messages to publish
-        # to the outside world
-        self.inproc_pull = zmq_context.socket(zmq.PULL)
-        self.inproc_pull.bind(URL_WORKER_UPLOADER)
-
-    def run(self):
-        # Socket to talk to the outside world
-        publisher = zmq_context.socket(zmq.PUB)
-        publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
-                                                  port=config.get('zmq', 'pubsub_port')))
-        while True:
-            try:
-                publisher.send(Uploader.make_payload(
-                    timestamp=None,
-                    data=self.inproc_pull.recv_pyobj()))
-            except ContextTerminated:
-                self.inproc_pull.close()
-                publisher.close()
-                break
-            except Exception:
-                log.exception(self.name)
-                continue
-
-    @staticmethod
-    def make_payload(timestamp=None, data=None):
-        payload = dict()
-        if timestamp is None:
-            timestamp = time.time()
-        payload['timestamp'] = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc).strftime(DATE_FORMAT)
-        if data is not None and len(data) > 0:
-            payload['data'] = data
-        log.debug(json.dumps(payload))
-        return umsgpack.packb(payload)
+    def add_output(self, device_key, relay):
+        if device_key in self._output_to_relay:
+            raise RuntimeError('{} is already associated with {}. Cannot also associate {}.'.format(
+                device_key,
+                self._output_to_relay[device_key],
+                relay))
+        self._output_to_relay[device_key] = relay
 
 
 class SignalHandler:
@@ -253,6 +307,18 @@ if __name__ == "__main__":
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
 
+    relay_workers = list()
+    relay_to_worker = dict()
+    # start relays
+    for relay_name in relay_to_io.keys():
+        io, pin = relay_to_io[relay_name]
+        relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
+        relay.start()
+        relay_workers.append(relay)
+        relay_to_worker[relay_name] = relay.zmq_url
+
+    relay_control = RelayControl(relay_mappings=relay_to_worker)
+
     input_types = dict(config.items('input_type'))
     # name overrides location name
     input_names = dict(config.items('input_name'))
@@ -278,11 +344,16 @@ if __name__ == "__main__":
     device_info['outputs'] = list()
     for field, output_type in output_types.items():
         output_location = output_locations[field]
+        device_key = '{} {}'.format(output_location, output_type)
         device_info['outputs'].append({
             'type': output_type,
             'location': output_location,
-            'device_key': '{} {}'.format(output_location, output_type)
+            'device_key': device_key
         })
+        if config.has_option('output_relay', field):
+            relay_control.add_output(
+                device_key=device_key,
+                relay=config.get('output_relay', field))
 
     input_addresses = dict(config.items('input_address'))
     input_to_adc = dict()
@@ -292,24 +363,17 @@ if __name__ == "__main__":
         # get the normal value
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
-    relay_workers = list()
-    relay_to_worker = dict()
-    # start relays
-    for relay_name in relay_to_io.keys():
-        io, pin = relay_to_io[relay_name]
-        relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
-        relay.start()
-        relay_workers.append(relay)
-        relay_to_worker[relay_name] = relay.zmq_url
-
     # start up threads
     uploader = Uploader()
     uploader.start()
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
-    relay_control = RelayControl(relay_mappings=relay_to_worker)
+    # start relay control
     relay_control.start()
+
+    device_activator = DeviceActivator()
+    device_activator.start()
 
     samples_processed = 0
 
