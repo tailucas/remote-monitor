@@ -351,9 +351,11 @@ if __name__ == "__main__":
             'device_key': device_key
         })
         if config.has_option('output_relay', field):
+            relay = config.get('output_relay', field)
+            log.info("'{}' will trigger '{}'".format(device_key, relay))
             relay_control.add_output(
                 device_key=device_key,
-                relay=config.get('output_relay', field))
+                relay=relay)
 
     input_addresses = dict(config.items('input_address'))
     input_to_adc = dict()
