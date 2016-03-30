@@ -120,7 +120,7 @@ class DeviceActivator(Thread):
 
         self.listener = zmq_context.socket(zmq.PULL)
         # what to do with device activations
-        self.notifier = zmq_context.socket(zmq.PUSH)
+        self.relay_control = zmq_context.socket(zmq.PUSH)
 
     def run(self):
         # outputs
