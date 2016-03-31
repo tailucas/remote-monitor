@@ -141,8 +141,11 @@ class DeviceActivator(Thread):
                     if 'input_context' not in event_data:
                         log.warn('{} requested without context, ignoring.'.format(output_type))
                         continue
+                    delay = None
+                    if 'activation_interval' in event_data['input_context']:
+                        delay = event_data['input_context']['activation_interval']
                     # send all output activations to the relay control, which will filter accordingly
-                    self.relay_control.send_pyobj(event_data['trigger_output']['device_key'])
+                    self.relay_control.send_pyobj((event_data['trigger_output']['device_key'], delay))
             except ContextTerminated:
                 self.listener.close()
                 self.relay_control.close()
@@ -211,7 +214,7 @@ class RelayControl(Thread):
     def run(self):
         while True:
             try:
-                device_key = self.socket.recv_pyobj()
+                device_key, delay = self.socket.recv_pyobj()
                 log.debug("Relay event for '{}'".format(device_key))
                 if device_key not in self._output_to_relay:
                     log.debug("'{}' is not configured for relay control".format(device_key))
@@ -219,9 +222,12 @@ class RelayControl(Thread):
                 relay = self._output_to_relay[device_key]
                 if relay in self._sockets:
                     log.info("'{}' => '{}'".format(device_key, relay))
-                    self._sockets[relay].send_pyobj({
+                    relay_cmd = {
                         'state': True
-                    })
+                    }
+                    if delay:
+                        relay_cmd['delay'] = delay
+                    self._sockets[relay].send_pyobj(relay_cmd)
                 else:
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
             except ContextTerminated:
