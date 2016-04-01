@@ -142,8 +142,8 @@ class DeviceActivator(Thread):
                         log.warn('{} requested without context, ignoring.'.format(output_type))
                         continue
                     delay = None
-                    if 'activation_interval' in event_data['input_context']:
-                        delay = event_data['input_context']['activation_interval']
+                    if 'trigger_duration' in event_data:
+                        delay = event_data['trigger_duration']
                     # send all output activations to the relay control, which will filter accordingly
                     self.relay_control.send_pyobj((event_data['trigger_output']['device_key'], delay))
             except ContextTerminated:
