@@ -53,7 +53,6 @@ log = logging.getLogger(APP)
 log.propagate = False
 
 ADC_SAMPLE_MAX = 5.0
-DEVICE_DEBOUNCE_SECONDS = 1
 HEARTBEAT_INTERVAL_SECONDS = 5
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 SAMPLE_INTERVAL_SECONDS = 0.1
@@ -421,6 +420,9 @@ if __name__ == "__main__":
                     if 'meter' in device_key.lower() and device_key in meter_history:
                         meter_value, meter_state = meter_history[device_key]
                         meter_history[device_key] = (meter_value, False)
+                    # forget that this device was active
+                    if device_key in device_history:
+                        del device_history[device_key]
                     # nothing else to unset here, next input now
                     continue
 
@@ -453,15 +455,19 @@ if __name__ == "__main__":
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
                             input_device['event_detail'] = tamper_label
                             device_event_distinction = '{} {}'.format(device_key, tamper_label)
-                    if device_event_distinction in device_history and time.time() - device_history[device_event_distinction] < DEVICE_DEBOUNCE_SECONDS:
-                        # sample to avoid log spam
-                        if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
-                            log.debug("Debouncing '{}' for another {} "
-                                      "seconds.".format(device_event_distinction,
-                                                        int(DEVICE_DEBOUNCE_SECONDS - (time.time() - device_history[device_event_distinction]))))
-                        continue
-                    else:
-                        device_history[device_event_distinction] = time.time()
+                    # determine whether the value has changed
+                    if device_key in device_history:
+                        historic_value, sampled_at = device_history[device_key]
+                        # has the value stayed the same?
+                        if abs(normalized_value - historic_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                            # sample to avoid log spam
+                            if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
+                                log.debug("Debouncing '{}' activated {} seconds "
+                                          "ago.".format(device_event_distinction,
+                                                        int(time.time() - sampled_at)))
+                            continue
+                    # update the device history and treat as active
+                    device_history[device_key] = (normalized_value, time.time())
                     # add the input device to the 'active' list
                     active_devices.append(input_device)
             if len(active_devices) > 0:
