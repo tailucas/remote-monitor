@@ -422,6 +422,7 @@ if __name__ == "__main__":
                         meter_history[device_key] = (meter_value, False)
                     # forget that this device was active
                     if device_key in device_history:
+                        log.debug("'{}' is no longer active.".format(device_key))
                         del device_history[device_key]
                     # nothing else to unset here, next input now
                     continue
