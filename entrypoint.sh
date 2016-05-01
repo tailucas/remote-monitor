@@ -120,6 +120,10 @@ for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
   chown "${APP_USER}" "/dev/${i}"
 done
 
+# Used by resin-sdk Settings
+export USER="${APP_USER}"
+export HOME=/data/
+
 # I'm the supervisor
 cat /app/config/supervisord.conf | python /app/config_interpol | tee /etc/supervisor/conf.d/supervisord.conf
 /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
