@@ -43,6 +43,11 @@ else
   cp -a /etc/localtime "$TZ_CACHE"
 fi
 
+# Used by resin-sdk Settings
+export USER="${APP_USER}"
+export HOME=/data/
+# invoke resin tool to write resin-sdk settings file
+python /app/resin
 
 # remote system logging
 HN_CACHE=/data/hostname
@@ -119,10 +124,6 @@ for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
     "${RESIN_SUPERVISOR_ADDRESS}/v1/restart?apikey=${RESIN_SUPERVISOR_API_KEY}"
   chown "${APP_USER}" "/dev/${i}"
 done
-
-# Used by resin-sdk Settings
-export USER="${APP_USER}"
-export HOME=/data/
 
 # I'm the supervisor
 cat /app/config/supervisord.conf | python /app/config_interpol | tee /etc/supervisor/conf.d/supervisord.conf
