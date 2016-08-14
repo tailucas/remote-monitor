@@ -1,4 +1,4 @@
-FROM resin/raspberrypi-debian:wheezy
+FROM resin/raspberrypi-debian:latest
 
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
