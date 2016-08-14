@@ -16,6 +16,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     git \
     i2c-tools \
     less \
+    libc6 \
     libffi-dev \
     libssl-dev \
     man-db \
