@@ -38,11 +38,9 @@ TZ_CACHE=/data/localtime
 # a valid symlink
 if [ -h "$TZ_CACHE" ] && [ -e "$TZ_CACHE" ]; then
   cp -a "$TZ_CACHE" /etc/localtime
-else
-  # set the timezone
-  tzupdate
-  cp -a /etc/localtime "$TZ_CACHE"
 fi
+# set the timezone
+(tzupdate && cp -a /etc/localtime "$TZ_CACHE") || [ -e "$TZ_CACHE" ]
 
 # remote system logging
 HN_CACHE=/data/hostname
@@ -56,15 +54,15 @@ if [ -e "$HN_CACHE" ]; then
     export DEVICE_NAME
   fi
 fi
-if [ -z "${DEVICE_NAME:-}" ]; then
-  export DEVICE_NAME="$(python /app/resin --get-device-name)"
-  echo "$DEVICE_NAME" > "$HN_CACHE"
-fi
+# refresh the device name and bail unless cached
+export DEVICE_NAME="$(python /app/resin --get-device-name)" || [ -n "${DEVICE_NAME:-}" ]
+echo "$DEVICE_NAME" > "$HN_CACHE"
 echo "$DEVICE_NAME" > /etc/hostname
 # apply the new hostname
 /etc/init.d/hostname.sh start
 # update hosts
 echo "127.0.1.1 ${DEVICE_NAME}" >> /etc/hosts
+unset DEVICE_NAME
 
 cp /app/config/rsyslog.conf /etc/rsyslog.conf
 if [ -n "${RSYSLOG_SERVER:-}" ]; then
@@ -94,10 +92,10 @@ done
 SUB_CACHE=/data/sub_src
 if [ -e "$SUB_CACHE" ]; then
   export SUB_SRC="$(cat "$SUB_CACHE")"
-else
-  export SUB_SRC="$(python /app/resin --get-devices | grep -v "$ETH0_IP" | paste -d, -s)"
-  echo "$SUB_SRC" > "$SUB_CACHE"
 fi
+# get the latest sources and bail unless cached
+export SUB_SRC="$(python /app/resin --get-devices | grep -v "$ETH0_IP" | paste -d, -s)" || [ -n "${SUB_SRC:-}" ]
+echo "$SUB_SRC" > "$SUB_CACHE"
 # application configuration (no tee for secrets)
 cat /app/config/app.conf | python /app/config_interpol > "/app/${APP_NAME}.conf"
 unset ETH0_IP
@@ -131,6 +129,7 @@ done
 # Used by resin-sdk Settings
 export USER="${APP_USER}"
 export HOME=/data/
+echo "export HISTFILE=/data/.bash_history_\${USER}" >> /etc/bash.bashrc
 
 # I'm the supervisor
 cat /app/config/supervisord.conf | python /app/config_interpol | tee /etc/supervisor/conf.d/supervisord.conf
