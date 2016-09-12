@@ -14,6 +14,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     g++ \
     gcc \
     git \
+    htop \
     i2c-tools \
     less \
     libffi-dev \
@@ -33,6 +34,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     ssl-cert \
     supervisor \
     vim \
+    wavemon \
     wget \
     # pip 8
     && python /tmp/pipstrap.py
