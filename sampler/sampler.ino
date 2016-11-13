@@ -23,6 +23,24 @@ volatile boolean startup = true;
 boolean first_round = true;
 boolean changed = false;
 
+void int_clock() {
+  now = micros();
+  clock_interval = now - last_clock;
+  // update the clock
+  last_clock = now;
+  // check for the first clock with some tolerance
+  if (clock_interval > (clock_preamble-20) && clock_interval < (clock_preamble+20)) {
+    bit_pos = 0;
+    startup = false;
+  } else if (startup or bit_pos >= word_length) {
+    return;
+  }
+  // allow the edge to dissipate
+  delayMicroseconds(100);
+  // read the data (goes low) and shift
+  data_word[bit_pos++] = (char) !digitalRead(dataPin);
+}
+
 void setup() {
   Serial.begin(9600);
   pinMode(ledPin, OUTPUT);
@@ -73,22 +91,4 @@ void loop() {
   }
   delayMicroseconds(clock_duration);
   digitalWrite(ledPin, LOW);
-}
-
-void int_clock() {
-  now = micros();
-  clock_interval = now - last_clock;
-  // update the clock
-  last_clock = now;
-  // check for the first clock with some tolerance
-  if (clock_interval > (clock_preamble-20) && clock_interval < (clock_preamble+20)) {
-    bit_pos = 0;
-    startup = false;
-  } else if (startup or bit_pos >= word_length) {
-    return;
-  }
-  // allow the edge to dissipate
-  delayMicroseconds(100);
-  // read the data (goes low) and shift
-  data_word[bit_pos++] = (char) !digitalRead(dataPin);
 }
