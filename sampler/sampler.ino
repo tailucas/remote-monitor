@@ -1,3 +1,4 @@
+#include "application.h"
 // pins
 const byte ledPin = 13;
 const byte interruptPin = 2;
