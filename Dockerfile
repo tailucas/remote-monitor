@@ -20,6 +20,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     less \
     libffi-dev \
     libssl-dev \
+    make \
     man-db \
     manpages \
     net-tools \
