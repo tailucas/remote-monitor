@@ -55,4 +55,11 @@ RUN pip install -r /tmp/pip_freeze
 # show outdated packages since the freeze
 RUN pip list --outdated
 
+# build the Arduino image
+WORKDIR /app/sampler
+RUN ARDUINODIR=/usr/share/arduino \
+    BOARD=uno \
+    SERIALDEV=/dev/ttyACM0 \
+    make
+
 ENTRYPOINT ["/entrypoint.sh"]

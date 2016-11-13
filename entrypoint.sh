@@ -127,6 +127,22 @@ for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
   chown "${APP_USER}" "/dev/${i}"
 done
 
+# sampler programming
+diff /app/sampler/sampler.ino /data/sampler.ino || PROGRAMMER=1
+if [ "${PROGRAMMER:-}" == "1" ]; then
+  pushd /app/sampler
+  export ARDUINODIR=/usr/share/arduino
+  export BOARD=uno
+  export SERIALDEV=/dev/ttyACM0
+  make upload
+  unset ARDUINODIR
+  unset BOARD
+  unset SERIALDEV
+  unset PROGRAMMER
+  cp sampler.ino /data/
+  popd
+fi
+
 # Used by resin-sdk Settings
 export USER="${APP_USER}"
 export HOME=/data/
