@@ -6,6 +6,7 @@ LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 COPY ./pipstrap.py /tmp/
 
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
+    arduino \
     ca-certificates \
     cpp \
     cron \

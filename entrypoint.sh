@@ -106,6 +106,8 @@ modprobe i2c-dev
 
 # so app can do i2c
 adduser "${APP_USER}" i2c
+# so app can interact with the serial device
+adduser "${APP_USER}" dialout
 
 APP_ID_CACHE=/data/app_id
 if [ -e $APP_ID_CACHE ]; then
