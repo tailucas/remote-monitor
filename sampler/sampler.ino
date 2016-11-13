@@ -1,4 +1,3 @@
-#include "application.h"
 // pins
 const byte ledPin = 13;
 const byte interruptPin = 2;
@@ -29,7 +28,8 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(interruptPin, INPUT);
   pinMode(dataPin, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), int_clock, CHANGE);
+  //attachInterrupt(digitalPinToInterrupt(interruptPin), int_clock, CHANGE);
+  attachInterrupt(0, int_clock, CHANGE);
 }
 
 void loop() {
