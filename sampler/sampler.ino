@@ -81,7 +81,7 @@ void loop() {
           //Serial.print(',');
           changed = true;
         } else {
-          Serial.print(output_data_word[i]);
+          Serial.print(output_data_word[i], DEC);
         }
       }
       previous_data_word[i] = output_data_word[i];
