@@ -80,6 +80,8 @@ void loop() {
           Serial.print("0");
           //Serial.print(',');
           changed = true;
+        } else {
+          Serial.print(output_data_word[i]);
         }
       }
       previous_data_word[i] = output_data_word[i];
