@@ -65,6 +65,16 @@ void loop() {
   // we're outside of the data word
   if (!startup && new_word) {
     changed = false;
+    // changes?
+    for (int i=0; i<word_length; i++) {
+      if (!first_round) {
+        if (output_data_word[i] > previous_data_word[i]) {
+          changed = true;
+        } else if (output_data_word[i] < previous_data_word[i]) {
+          changed = true;
+        }
+      }
+    }
     for (int i=0; i<word_length; i++) {
       output_data_word[i] = data_word[i];
       if (!first_round) {
@@ -80,7 +90,7 @@ void loop() {
           Serial.print("0");
           //Serial.print(',');
           changed = true;
-        } else {
+        } else if (changed) {
           Serial.print(output_data_word[i], DEC);
         }
       }
