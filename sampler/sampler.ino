@@ -69,14 +69,16 @@ void loop() {
       output_data_word[i] = data_word[i];
       if (!first_round) {
         if (output_data_word[i] > previous_data_word[i]) {
-          Serial.print(i, DEC);
-          Serial.print(":1");
-          Serial.print(',');
+          //Serial.print(i, DEC);
+          //Serial.print(":1");
+          Serial.print("1");
+          //Serial.print(',');
           changed = true;
         } else if (output_data_word[i] < previous_data_word[i]) {
-          Serial.print(i, DEC);
-          Serial.print(":0");
-          Serial.print(',');
+          //Serial.print(i, DEC);
+          //Serial.print(":0");
+          Serial.print("0");
+          //Serial.print(',');
           changed = true;
         }
       }
