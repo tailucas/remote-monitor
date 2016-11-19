@@ -12,7 +12,7 @@ volatile unsigned long clock_interval = 0;
 // for printing
 unsigned long last_print = 0;
 unsigned long print_interval = 0;
-const long print_frequency = 60000000;
+const long print_frequency = 10000000;
 // variables
 volatile int bit_pos = 0;
 const int word_length = 64;
@@ -20,6 +20,7 @@ volatile char data_word[word_length] = {0};
 char previous_data_word[word_length+1] = {0};
 char output_data_word[word_length+1] = {0};
 volatile boolean startup = true;
+volatile boolean new_word = true;
 boolean first_round = true;
 boolean changed = false;
 
@@ -31,8 +32,15 @@ void int_clock() {
   // check for the first clock with some tolerance
   if (clock_interval > (clock_preamble-20) && clock_interval < (clock_preamble+20)) {
     bit_pos = 0;
+    new_word = false;
     startup = false;
-  } else if (startup or bit_pos >= word_length) {
+  } else if (bit_pos >= word_length) {
+    // the word is complete
+    detachInterrupt(0);
+    new_word = true;
+  }
+  // don't read data if we're not in the word
+  if (new_word) {
     return;
   }
   // allow the edge to dissipate
@@ -46,14 +54,16 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(interruptPin, INPUT);
   pinMode(dataPin, INPUT_PULLUP);
+  // older compiler
   //attachInterrupt(digitalPinToInterrupt(interruptPin), int_clock, CHANGE);
+  //Board	        int.0	int.1	int.2	int.3	int.4	int.5
+  //Uno, Ethernet	2	    3
   attachInterrupt(0, int_clock, CHANGE);
 }
 
 void loop() {
   // we're outside of the data word
-  if (bit_pos >= word_length) {
-    // copy the data word in case printing it exceeds the clock idle time
+  if (!startup && new_word) {
     changed = false;
     for (int i=0; i<word_length; i++) {
       output_data_word[i] = data_word[i];
@@ -76,18 +86,20 @@ void loop() {
     // we printed, so don't heartbeat
     now = micros();
     if (changed) {
+      digitalWrite(ledPin, HIGH);
       last_print = now;
       Serial.println();
     }
     print_interval = now - last_print;
     if (print_interval > print_frequency) {
-      digitalWrite(ledPin, HIGH);
       for (int i=0; i<word_length; i++) {
         Serial.print(output_data_word[i], DEC);
       }
       Serial.println();
       last_print = now;
     }
+    // processing complete, attach the interrupt again
+    attachInterrupt(0, int_clock, CHANGE);
   }
   delayMicroseconds(clock_duration);
   digitalWrite(ledPin, LOW);
