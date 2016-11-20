@@ -6,6 +6,7 @@ import logging.handlers
 import os
 import pprint
 import pytz
+import serial
 import signal
 import sys
 import time
@@ -20,6 +21,7 @@ from ConfigParser import ConfigParser
 
 from datetime import datetime
 from random import randint
+from serial.serialutil import SerialException
 from threading import Thread
 from time import sleep
 from zmq import ContextTerminated
@@ -286,6 +288,9 @@ if __name__ == "__main__":
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
 
+    # serial
+    com1 = serial.Serial(port=config.get('serial', 'port'), baudrate=config.getint('serial', 'baudrate'))
+
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
 
@@ -491,8 +496,22 @@ if __name__ == "__main__":
                         'device_info': device_info
                     })
                     last_upload = time.time()
+            # now pull some serial data
+            try:
+                serial_data = com1.readline()
+                while serial_data is not None:
+                    log.debug("SERIAL DATA: [{}]".format(serial_data))
+                    serial_data = com1.readline()
+            except SerialException:
+                if com1.closed:
+                    break
+                # if the process is signalled
+                continue
             sleep(SAMPLE_INTERVAL_SECONDS)
+            # throw away the intermediate data if the external sample rate exceeds our ability to consume it
+            #com1.flushInput()
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
+        com1.close()
         uploader_socket.close()
         zmq_context.term()
     finally:
