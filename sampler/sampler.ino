@@ -13,8 +13,8 @@ volatile unsigned long clock_interval = 0;
 // for printing
 unsigned long last_print_ts = 0;
 unsigned long last_print_interval = 0;
-// 1000 ms
-const long print_interval = 1000000;
+// 500 ms
+const long print_interval = 500000;
 // variables
 volatile int bit_pos = 0;
 const int word_length = 64;
