@@ -73,6 +73,28 @@ zmq_context = zmq.Context()
 zmq_context.setsockopt(zmq.LINGER, 0)
 
 
+class AlarmDecoder:
+
+    VALID_WORD_LENGTH = 64;
+
+    def __init__(self):
+        self._alarm_state = 0;
+
+    def set_state(state_string):
+        log.debug('{} setting state to [{}]'.format(self.__class__.__name__, state_string))
+        if state_string is None or len(state_string.rstrip()) != AlarmDecoder.VALID_WORD_LENGTH:
+            log.warn('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
+            return
+        new_state = long(state_string, base=2)
+        if new_state != self._alarm_state:
+            bin_string = '{0:b}'.format(new_state)
+            log.info('Alarm state has changed to: {}'.format(bin_string.zfill(AlarmDecoder.VALID_WORD_LENGTH)))
+        self._alarm_state = new_state
+
+    def __str__(self):
+        return self.__class__.__name__
+
+
 class Uploader(Thread):
 
     def __init__(self):
@@ -289,7 +311,11 @@ if __name__ == "__main__":
         log.addHandler(stream_handler)
 
     # serial
-    com1 = serial.Serial(port=config.get('serial', 'port'), baudrate=config.getint('serial', 'baudrate'))
+    com1 = serial.Serial(
+        port=config.get('serial', 'port'),
+        baudrate=config.getint('serial', 'baudrate'),
+        timeout=1)
+    alarm_decoder = AlarmDecoder()
 
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
@@ -498,18 +524,15 @@ if __name__ == "__main__":
                     last_upload = time.time()
             # now pull some serial data
             try:
-                serial_data = com1.readline()
-                while serial_data is not None:
-                    log.debug("SERIAL DATA: [{}]".format(serial_data))
-                    serial_data = com1.readline()
+                # throw away any intermediate input
+                com1.flushInput()
+                # get the latest data
+                #TODO: fix partial reads
+                alarm_decoder.set_state(com1.readline())
             except SerialException:
                 if com1.closed:
-                    break
-                # if the process is signalled
-                continue
+                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
             sleep(SAMPLE_INTERVAL_SECONDS)
-            # throw away the intermediate data if the external sample rate exceeds our ability to consume it
-            #com1.flushInput()
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
         com1.close()
         uploader_socket.close()
