@@ -528,7 +528,8 @@ if __name__ == "__main__":
                 com1.flushInput()
                 # get the latest data
                 #TODO: fix partial reads
-                alarm_decoder.set_state(com1.readline())
+                serial_data = com1.readline()
+                alarm_decoder.set_state(serial_data)
             except SerialException:
                 if com1.closed:
                     log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
