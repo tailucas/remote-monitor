@@ -80,7 +80,7 @@ class AlarmDecoder:
     def __init__(self):
         self._alarm_state = 0;
 
-    def set_state(state_string):
+    def set_state(self, state_string):
         log.debug('{} setting state to [{}]'.format(self.__class__.__name__, state_string))
         if state_string is None or len(state_string.rstrip()) != AlarmDecoder.VALID_WORD_LENGTH:
             log.warn('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
@@ -92,7 +92,8 @@ class AlarmDecoder:
         self._alarm_state = new_state
 
     def __str__(self):
-        return self.__class__.__name__
+        bin_string = '{0:b}'.format(self._alarm_state)
+        return bin_string.zfill(AlarmDecoder.VALID_WORD_LENGTH)
 
 
 class Uploader(Thread):
@@ -528,8 +529,7 @@ if __name__ == "__main__":
                 com1.flushInput()
                 # get the latest data
                 #TODO: fix partial reads
-                serial_data = com1.readline()
-                alarm_decoder.set_state(serial_data)
+                alarm_decoder.set_state(com1.readline())
             except SerialException:
                 if com1.closed:
                     log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
