@@ -81,7 +81,7 @@ class AlarmDecoder:
     def set_state(self, state_string):
         log.debug('{} setting state to [{}]'.format(self.__class__.__name__, state_string))
         if state_string is None or len(state_string) == 0 or ',' not in state_string:
-            log.warn('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
+            log.debug('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
             return
         words = state_string.split(',')
         upper_word = long(words[0], base=16)
