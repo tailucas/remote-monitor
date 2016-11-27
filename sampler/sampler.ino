@@ -4,52 +4,75 @@ const byte interruptPin = 2;
 const byte dataPin = 3;
 // timing constants
 const int clock_duration = 220;
+const int clock_duration_tolerance = clock_duration/10;
 const int clock_preamble = clock_duration*2;
 const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
-volatile unsigned long now = 0;
-volatile unsigned long last_clock_ts = 0;
-volatile unsigned long clock_interval = 0;
 // for printing
 unsigned long last_print_ts = 0;
 unsigned long last_print_interval = 0;
-// 500 ms
-const long print_interval = 500000;
-// variables
+const long print_interval = 10000000;
+// interrupt routine variables
+volatile unsigned long now = 0;
+volatile unsigned long last_clock_ts = 0;
+volatile unsigned long clock_interval = 0;
 volatile int bit_pos = 0;
-const int word_length = 64;
-volatile char data_word[word_length+1] = {0};
-volatile boolean startup = true;
+volatile unsigned long data_word1 = 0;
+volatile unsigned long prev_data_word1 = 0;
+volatile unsigned long data_word2 = 0;
+volatile unsigned long prev_data_word2 = 0;
 volatile boolean word_ready = false;
-
+volatile boolean in_word = false;
+volatile boolean changed = false;
 void int_clock() {
   // update timings
   now = micros();
   clock_interval = now - last_clock_ts;
-  // ignore false clocks
-  if (clock_interval < clock_duration/2) {
-    return;
-  }
   // update timings
   last_clock_ts = now;
   // check for the first clock with some tolerance
   if (clock_interval > (clock_preamble-clock_preamble_tolerance) && clock_interval < (clock_preamble+clock_preamble_tolerance)) {
-    // a valid word is exactly the length of the word
-    if (!startup) {
-      // the previous word is valid
-      detachInterrupt(0);
-      word_ready = true;
-      return;
-    }
+    in_word = true;
+    // reset the bit position unconditionally
     bit_pos = 0;
-    startup = false;
-  } else if (startup) {
+  } else if (!in_word) {
     return;
   }
   // allow the edge to dissipate
   delayMicroseconds(100);
   // read the data (goes low) and shift
-  data_word[bit_pos++] = (char) !digitalRead(dataPin);
+  if (digitalRead(dataPin) == LOW) {
+    // set
+    if (bit_pos < 32) {
+      data_word1 |= ((unsigned long)1 << (31-bit_pos));
+    } else {
+      data_word2 |= ((unsigned long)1 << (31-(bit_pos-32)));
+    }
+  } else {
+    // unset
+    if (bit_pos < 32) {
+      data_word1 &= ~((unsigned long)1 << (31-bit_pos));
+    } else {
+      data_word2 &= ~((unsigned long)1 << (31-(bit_pos-32)));
+    }
+  }
+  // shift
+  bit_pos++;
+  // exit
+  if (bit_pos >= 64) {
+    detachInterrupt(0);
+    if (data_word1 != prev_data_word1 || data_word2 != prev_data_word2) {
+      changed = true;
+    } else {
+      changed = false;
+    }
+    //(re)set
+    prev_data_word1 = data_word1;
+    prev_data_word2 = data_word2;
+    bit_pos = 0;
+    in_word = false;
+    word_ready = true;
+  }
 }
 
 void setup() {
@@ -67,22 +90,18 @@ void setup() {
 void loop() {
   // we're outside of the data word
   if (word_ready) {
-    // print heartbeat (full state)
+    // print immediately upon change or regularly for heartbeat
     last_print_interval = micros() - last_print_ts;
-    if (last_print_interval > print_interval) {
-      digitalWrite(ledPin, HIGH);
-      for (int i=0; i<word_length; i++) {
-        Serial.print(data_word[i], DEC);
-      }
-      Serial.println();
+    if (changed || (last_print_interval > print_interval)) {
+      Serial.print(data_word1, BIN);
+      Serial.print(',');
+      Serial.println(data_word2, BIN);
       last_print_ts = micros();
     }
-    // processing complete, attach the interrupt again
+    // processing complete, latch and attach the interrupt again
     word_ready = false;
-    startup = true;
     attachInterrupt(0, int_clock, CHANGE);
   }
   // sleep so that we're not processing while an interrupt may be busy
   delayMicroseconds(clock_idle*2);
-  digitalWrite(ledPin, LOW);
 }
