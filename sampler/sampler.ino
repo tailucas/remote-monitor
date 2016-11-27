@@ -93,9 +93,9 @@ void loop() {
     // print immediately upon change or regularly for heartbeat
     last_print_interval = micros() - last_print_ts;
     if (changed || (last_print_interval > print_interval)) {
-      Serial.print(data_word1, BIN);
+      Serial.print(data_word1, HEX);
       Serial.print(',');
-      Serial.println(data_word2, BIN);
+      Serial.println(data_word2, HEX);
       last_print_ts = micros();
     }
     // processing complete, latch and attach the interrupt again
