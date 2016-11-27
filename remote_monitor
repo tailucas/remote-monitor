@@ -75,25 +75,24 @@ zmq_context.setsockopt(zmq.LINGER, 0)
 
 class AlarmDecoder:
 
-    VALID_WORD_LENGTH = 64;
-
     def __init__(self):
-        self._alarm_state = 0;
+        self._alarm_state = 0
 
     def set_state(self, state_string):
         log.debug('{} setting state to [{}]'.format(self.__class__.__name__, state_string))
-        if state_string is None or len(state_string.rstrip()) != AlarmDecoder.VALID_WORD_LENGTH:
+        if state_string is None or len(state_string) == 0 or ',' not in state_string:
             log.warn('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
             return
-        new_state = long(state_string, base=2)
+        words = state_string.split(',')
+        upper_word = long(words[0], base=16)
+        lower_word = long(words[1], base=16)
+        new_state = (upper_word << 31) | lower_word
         if new_state != self._alarm_state:
-            bin_string = '{0:b}'.format(new_state)
-            log.info('Alarm state has changed to: {}'.format(bin_string.zfill(AlarmDecoder.VALID_WORD_LENGTH)))
+            log.info('Alarm state has changed to: {}'.format(str(self)))
         self._alarm_state = new_state
 
     def __str__(self):
-        bin_string = '{0:b}'.format(self._alarm_state)
-        return bin_string.zfill(AlarmDecoder.VALID_WORD_LENGTH)
+        return '{0:b}'.format(self._alarm_state).zfill(64)
 
 
 class Uploader(Thread):
