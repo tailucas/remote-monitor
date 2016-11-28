@@ -37,6 +37,10 @@ void int_clock() {
     bit_pos = 0;
   } else if (!in_word) {
     return;
+  } else if (clock_interval > (clock_duration+clock_duration_tolerance) || clock_interval < (clock_duration-clock_duration_tolerance)) {
+    // abandon this word because the timing is off
+    in_word = false;
+    return;
   }
   // allow the edge to dissipate
   delayMicroseconds(100);
