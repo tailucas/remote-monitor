@@ -88,8 +88,8 @@ class AlarmDecoder:
         lower_word = long(words[1], base=16)
         new_state = (upper_word << 31) | lower_word
         if new_state != self._alarm_state:
+            self._alarm_state = new_state
             log.info('Alarm state has changed to: {}'.format(str(self)))
-        self._alarm_state = new_state
 
     def __str__(self):
         return '{0:b}'.format(self._alarm_state).zfill(64)
@@ -525,7 +525,8 @@ if __name__ == "__main__":
             # now pull some serial data
             try:
                 # throw away any intermediate input
-                com1.flushInput()
+                #TODO: fixme
+                #com1.flushInput()
                 # get the latest data
                 #TODO: fix partial reads
                 alarm_decoder.set_state(com1.readline())
