@@ -134,23 +134,23 @@ class AlarmDecoder:
 
     def __str__(self):
         active_flags = list()
-        if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ARM == AlarmDecoder.ARM:
             active_flags.append('Armed')
-        if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.STAY == AlarmDecoder.STAY:
             active_flags.append('Stay')
-        if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.READY == AlarmDecoder.READY:
             active_flags.append('Ready')
-        if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
             active_flags.append('Zone_1')
-        if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
             active_flags.append('Zone_2')
-        if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
             active_flags.append('Zone_3')
-        if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
             active_flags.append('Zone_4')
-        if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
             active_flags.append('Zone_5')
-        if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
             active_flags.append('Zone_6')
         return str(active_flags)
 
