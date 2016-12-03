@@ -75,11 +75,49 @@ zmq_context.setsockopt(zmq.LINGER, 0)
 
 class AlarmDecoder:
 
+    #Baseline
+    #0000000010100010001010101000001000000001010101010101010101010100
+    #Ready
+    #0000000010100010001010101000001000000001010101010101010101010000
+    #AC/LB + Ready
+    #0000000010100010001010101000001000000001010101010100010101010000
+    #AC/LB + 1
+    #0000000010100010001010101000001000000000010101010100010101010100
+    #AC/LB + Arm + Stay
+    #0000000010100010001010101000001000000001010101010100010000010100
+    #AC/LB + 1
+    #0000000010100010001010101000001000000000010101010100010101010100
+    #AC/LB + 2
+    #0000000010100010001010101000001000000001000101010100010101010100
+    #2
+    #0000000010100010001010101000001000000001000101010101010101010100
+    #AC/LB + 3
+    #0000000010100010001010101000001000000001010001010100010101010100
+    #AC/LB + 4
+    #0000000010100010001010101000001000000001010100010100010101010100
+    #AC/LB + 5
+    #0000000010100010001010101000001000000001010101000100010101010100
+    #AC/LB + 6
+    #0000000010100010001010101000001000000001010101010000010101010100
+
+    BASELINE = 0xA22A8201555554
+    ARM = 0x100
+    STAY = 0x40
+    #INSTANT = 0x??
+    AC_LB = 0x1000
+    READY = 0x4
+    ZONE_1 = 0x1000000
+    ZONE_2 = 0x400000
+    ZONE_3 = 0x100000
+    ZONE_4 = 0x40000
+    ZONE_5 = 0x10000
+    ZONE_6 = 0x4000
+
     def __init__(self):
         self._alarm_state = 0
 
     def set_state(self, state_string):
-        log.debug('{} setting state to [{}]'.format(self.__class__.__name__, state_string))
+        log.debug('{} setting alarm state to [{}]'.format(self.__class__.__name__, state_string))
         if state_string is None or len(state_string) == 0 or ',' not in state_string:
             log.debug('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
             return
@@ -89,11 +127,32 @@ class AlarmDecoder:
         new_state = (upper_word << 31) | lower_word
         if new_state != self._alarm_state:
             self._alarm_state = new_state
-            log.info('Alarm state has changed to: {}'.format(str(self)))
+            log.debug('Alarm state has chagned to: {0:b}'.format(self._alarm_state).zfill(64))
+            state_string = str(self)
+            if len(state_string) > 0:
+                log.info('Alarm state: {}'.format(state_string))
 
     def __str__(self):
-        return '{0:b}'.format(self._alarm_state).zfill(64)
-
+        active_flags = list()
+        if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
+            active_flags.append('Armed')
+        if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
+            active_flags.append('Stay')
+        if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
+            active_flags.append('Ready')
+        if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+            active_flags.append('Zone_1')
+        if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+            active_flags.append('Zone_2')
+        if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+            active_flags.append('Zone_3')
+        if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+            active_flags.append('Zone_4')
+        if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+            active_flags.append('Zone_5')
+        if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+            active_flags.append('Zone_6')
+        return str(active_flags)
 
 class Uploader(Thread):
 
