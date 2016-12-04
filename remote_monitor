@@ -127,32 +127,30 @@ class AlarmDecoder:
         new_state = (upper_word << 31) | lower_word
         if new_state != self._alarm_state:
             self._alarm_state = new_state
-            log.debug('Alarm state has chagned to: {0:b}'.format(self._alarm_state).zfill(64))
+            word_mapping = AlarmDecoder.BASELINE ^ self._alarm_state
             state_string = str(self)
             if len(state_string) > 0:
                 log.info('Alarm state: {}'.format(state_string))
+            elif word_mapping != 0:
+                log.warn('Unmapped alarm state: {0:b}'.format(word_mapping).zfill(64))
+            else:
+                log.debug('Alarm state has changed to: {0:b}'.format(self._alarm_state).zfill(64))
 
     def __str__(self):
-        active_flags = list()
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ARM == AlarmDecoder.ARM:
-            active_flags.append('Armed')
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.STAY == AlarmDecoder.STAY:
-            active_flags.append('Stay')
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.READY == AlarmDecoder.READY:
-            active_flags.append('Ready')
+        zone_summary = list()
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
-            active_flags.append('Zone_1')
+            zone_summary.append(config.get('house_alarm_decoder', 'Z1'))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
-            active_flags.append('Zone_2')
+            zone_summary.append(config.get('house_alarm_decoder', 'Z2'))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
-            active_flags.append('Zone_3')
+            zone_summary.append(config.get('house_alarm_decoder', 'Z3')))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
-            active_flags.append('Zone_4')
+            zone_summary.append(config.get('house_alarm_decoder', 'Z4'))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
-            active_flags.append('Zone_5')
+            zone_summary.append(config.get('house_alarm_decoder', 'Z5'))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
-            active_flags.append('Zone_6')
-        return str(active_flags)
+            zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
+        return str(zone_summary)
 
 class Uploader(Thread):
 
@@ -494,6 +492,15 @@ if __name__ == "__main__":
         last_upload = 0
         device_history = dict()
         while True:
+            # serial data for the alarm device type
+            try:
+                alarm_state_data = com1.readline()
+                while len(alarm_state_data) > 0:
+                    alarm_decoder.set_state(alarm_state_data)
+                    alarm_state_data = com1.readline()
+            except SerialException:
+                if com1.closed:
+                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
             active_devices = list()
             output_samples = dict()
             for i in input_to_adc.keys():
@@ -502,6 +509,7 @@ if __name__ == "__main__":
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
                 input_value = int(input_normal_values[i])
                 device_key = input_devices[i]['device_key']
+                device_type = input_devices[i]['type']
                 samples_processed += 1
                 if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                     log.debug('Comparing {}.{}={} ({}v) '
@@ -547,16 +555,32 @@ if __name__ == "__main__":
                     output_samples[device_key] = int(normalized_value)
                     input_device = copy.copy(input_devices[i])
                     input_device['sample_value'] = int(normalized_value)
+                    event_detail = None
                     if i in input_tamper_values:
                         tamper_value = int(input_tamper_values[i])
                         if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                            input_device['event_detail'] = tamper_label
+                            event_detail = tamper_label
                             device_event_distinction = '{} {}'.format(device_key, tamper_label)
+                    # decorate the alarm input type if it is not in a fault state
+                    if device_type.lower() == 'alarm' and 'event_detail' not in input_device:
+                        # get the latest state data
+                        try:
+                            alarm_state_data = com1.readline()
+                            while len(alarm_state_data) > 0:
+                                alarm_decoder.set_state(alarm_state_data)
+                                alarm_state_data = com1.readline()
+                            event_detail = str(alarm_decoder)
+                        except SerialException:
+                            if com1.closed:
+                                log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
+                    # now include the event detail
+                    if event_detail:
+                        input_device['event_detail'] = event_detail
                     # determine whether the value has changed
                     if device_key in device_history:
-                        historic_value, sampled_at = device_history[device_key]
+                        historic_value, sampled_at, historic_detail = device_history[device_key]
                         # has the value stayed the same?
-                        if abs(normalized_value - historic_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                        if abs(normalized_value - historic_value) <= SAMPLE_DEVIATION_TOLERANCE and event_detail == historic_detail:
                             # sample to avoid log spam
                             if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                                 log.debug("Debouncing '{}' activated {} seconds "
@@ -564,7 +588,7 @@ if __name__ == "__main__":
                                                         int(time.time() - sampled_at)))
                             continue
                     # update the device history and treat as active
-                    device_history[device_key] = (normalized_value, time.time())
+                    device_history[device_key] = (normalized_value, time.time(), event_detail)
                     # add the input device to the 'active' list
                     active_devices.append(input_device)
             if len(active_devices) > 0:
@@ -581,17 +605,6 @@ if __name__ == "__main__":
                         'device_info': device_info
                     })
                     last_upload = time.time()
-            # now pull some serial data
-            try:
-                # throw away any intermediate input
-                #TODO: fixme
-                #com1.flushInput()
-                # get the latest data
-                #TODO: fix partial reads
-                alarm_decoder.set_state(com1.readline())
-            except SerialException:
-                if com1.closed:
-                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
         com1.close()
