@@ -150,7 +150,7 @@ class AlarmDecoder:
             zone_summary.append(config.get('house_alarm_decoder', 'Z5'))
         if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
             zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
-        return str(zone_summary)
+        return ', '.join(zone_summary)
 
 class Uploader(Thread):
 
