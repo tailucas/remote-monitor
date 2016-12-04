@@ -9,6 +9,8 @@ const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
 const int sample_count = 7;
 const int sample_threshold = sample_count / 2;
+// 0xAAAAAA
+const unsigned long validity_mask = 11184810;
 // for printing
 unsigned long last_print_ts = 0;
 const long print_interval = 10000000;
@@ -74,6 +76,12 @@ void int_clock() {
   bit_pos++;
   // exit
   if (bit_pos >= 64) {
+    // validate data_word2
+    if (data_word2 & validity_mask != 0) {
+      bit_pos = 0;
+      in_word = false;
+      return;
+    }
     detachInterrupt(0);
     if (data_word1 != prev_data_word1 || data_word2 != prev_data_word2) {
       changed = true;
