@@ -148,13 +148,10 @@ class AlarmDecoder:
             return
         if new_state != self._alarm_state:
             self._alarm_state = new_state
-            log.debug('Alarm state has changed to: {0:b}'.format(self._alarm_state).zfill(64))
-            word_mapping = AlarmDecoder.BASELINE ^ self._alarm_state
+            log.debug('Alarm state has changed to: {0:b}'.format(AlarmDecoder.BASELINE ^ self._alarm_state).zfill(64))
             to_string = str(self)
             if len(to_string) > 0:
-                log.info('Alarm state: {}'.format(to_string))
-            elif word_mapping != 0:
-                log.warn('Unmapped alarm status state: {0:b}'.format(word_mapping).zfill(64))
+                log.debug('Alarm state description: {}'.format(to_string))
 
     def __str__(self):
         zone_summary = list()
