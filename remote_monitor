@@ -73,7 +73,7 @@ zmq_context = zmq.Context()
 zmq_context.setsockopt(zmq.LINGER, 0)
 
 
-class AlarmDecoder:
+class AlarmDecoder(Thread):
 
     # Baseline
     # 0000000010100010001010101000001000000001010101010101010101010100
@@ -129,7 +129,44 @@ class AlarmDecoder:
     ZONE_6 = 0x4000
 
     def __init__(self):
+        super(Uploader, self).__init__(name=self.__class__.__name__)
+        self.daemon = True
         self._alarm_state = 0
+        # serial
+        self._com1 = serial.Serial(
+            port=config.get('serial', 'port'),
+            baudrate=config.getint('serial', 'baudrate'),
+            timeout=1)
+        # state init
+        self._zone_states = dict()
+        self._zone_states[AlarmDecoder.ARM] = \
+        self._zone_states[AlarmDecoder.STAY] = \
+        self._zone_states[AlarmDecoder.AC_LB] = \
+        self._zone_states[AlarmDecoder.READY] = \
+        self._zone_states[AlarmDecoder.ZONE_1] = \
+        self._zone_states[AlarmDecoder.ZONE_2] = \
+        self._zone_states[AlarmDecoder.ZONE_3] = \
+        self._zone_states[AlarmDecoder.ZONE_4] = \
+        self._zone_states[AlarmDecoder.ZONE_5] = \
+        self._zone_states[AlarmDecoder.ZONE_6] = 0
+
+    def run(self):
+        while True:
+            # serial data for the alarm device type
+            try:
+                alarm_state_data = self._com1.readline()
+                while len(alarm_state_data) > 0:
+                    self.set_state(alarm_state_data)
+                    alarm_state_data = self._com1.readline()
+            except SerialException:
+                if self._com1.closed:
+                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
+                    break
+            sleep(SAMPLE_INTERVAL_SECONDS)
+
+    def stop(self):
+        if not self._com1.closed:
+            self._com1.close()
 
     def set_state(self, state_string):
         log.debug('{} setting alarm state to [{}]'.format(self.__class__.__name__, state_string))
@@ -144,28 +181,54 @@ class AlarmDecoder:
         new_state &= AlarmDecoder.STATUS_MASK
         # perform bitwise validation
         if new_state & AlarmDecoder.VALIDITY_MASK != 0:
-            log.warn('Ignoring invalid alarm status word: {0:b}'.format(new_state).zfill(64))
+            bin_string = '{0:b}'.format(new_state).zfill(64)
+            log.warn('Ignoring invalid alarm status word: {} derived from {}'.format(bin_string, state_string))
             return
         if new_state != self._alarm_state:
             self._alarm_state = new_state
-            log.debug('Alarm state has changed to: {0:b}'.format(AlarmDecoder.BASELINE ^ self._alarm_state).zfill(64))
+            # set the individual zone states
+            now = time.time()
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ARM == AlarmDecoder.ARM:
+                self._zone_states[AlarmDecoder.ARM] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.STAY == AlarmDecoder.STAY:
+                self._zone_states[AlarmDecoder.STAY] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
+                self._zone_states[AlarmDecoder.AC_LB] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.READY == AlarmDecoder.READY:
+                self._zone_states[AlarmDecoder.READY] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+                self._zone_states[AlarmDecoder.ZONE_1] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+                self._zone_states[AlarmDecoder.ZONE_2] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+                self._zone_states[AlarmDecoder.ZONE_3] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+                self._zone_states[AlarmDecoder.ZONE_4] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+                self._zone_states[AlarmDecoder.ZONE_5] = now
+            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+                self._zone_states[AlarmDecoder.ZONE_6] = now
+            # debugging
+            bin_string = '{0:b}'.format(AlarmDecoder.BASELINE ^ self._alarm_state).zfill(64)
+            log.debug('Alarm state has changed to: {}'.format(bin_string)
             to_string = str(self)
             if len(to_string) > 0:
                 log.debug('Alarm state description: {}'.format(to_string))
 
     def __str__(self):
         zone_summary = list()
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+        now = time.time()
+        if now - self._zone_states[AlarmDecoder.ZONE_1] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z1'))
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+        if now - self._zone_states[AlarmDecoder.ZONE_2] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z2'))
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+        if now - self._zone_states[AlarmDecoder.ZONE_3] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z3'))
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+        if now - self._zone_states[AlarmDecoder.ZONE_4] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z4'))
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+        if now - self._zone_states[AlarmDecoder.ZONE_5] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z5'))
-        if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+        if now - self._zone_states[AlarmDecoder.ZONE_6] <= 2:
             zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
         return ', '.join(zone_summary)
 
@@ -384,13 +447,6 @@ if __name__ == "__main__":
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
 
-    # serial
-    com1 = serial.Serial(
-        port=config.get('serial', 'port'),
-        baudrate=config.getint('serial', 'baudrate'),
-        timeout=1)
-    alarm_decoder = AlarmDecoder()
-
     # i2c
     i2c_bus = ABEHelpers().get_smbus()
 
@@ -493,6 +549,10 @@ if __name__ == "__main__":
     device_activator = DeviceActivator()
     device_activator.start()
 
+    # alarm decoder
+    alarm_decoder = AlarmDecoder()
+    alarm_decoder.start()
+
     samples_processed = 0
 
     meter_history = dict()
@@ -509,15 +569,7 @@ if __name__ == "__main__":
         last_upload = 0
         device_history = dict()
         while True:
-            # serial data for the alarm device type
-            try:
-                alarm_state_data = com1.readline()
-                while len(alarm_state_data) > 0:
-                    alarm_decoder.set_state(alarm_state_data)
-                    alarm_state_data = com1.readline()
-            except SerialException:
-                if com1.closed:
-                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
+
             active_devices = list()
             output_samples = dict()
             for i in input_to_adc.keys():
@@ -580,16 +632,7 @@ if __name__ == "__main__":
                             device_event_distinction = '{} {}'.format(device_key, tamper_label)
                     # decorate the alarm input type if it is not in a fault state
                     if device_type.lower() == 'alarm' and 'event_detail' not in input_device:
-                        # get the latest state data
-                        try:
-                            alarm_state_data = com1.readline()
-                            while len(alarm_state_data) > 0:
-                                alarm_decoder.set_state(alarm_state_data)
-                                alarm_state_data = com1.readline()
-                            event_detail = str(alarm_decoder)
-                        except SerialException:
-                            if com1.closed:
-                                log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
+                        event_detail = str(alarm_decoder)
                     # now include the event detail
                     if event_detail:
                         input_device['event_detail'] = event_detail
@@ -624,7 +667,7 @@ if __name__ == "__main__":
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
-        com1.close()
+        alarm_decoder.stop()
         uploader_socket.close()
         zmq_context.term()
     finally:
