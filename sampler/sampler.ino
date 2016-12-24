@@ -7,10 +7,8 @@ const int clock_duration = 220;
 const int clock_preamble = clock_duration*2;
 const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
-// 0xAAAAAAAA
-const unsigned long validity_mask1 = 2863311530;
-// 0xAAAAAA
-const unsigned long validity_mask2 = 11184810;
+const unsigned long validity_mask1 = 0xAAAAAAAA;
+const unsigned long validity_mask2 = 0x2AAAAAA;
 // for printing
 unsigned long last_print_ts = 0;
 const long print_interval = 10000000;

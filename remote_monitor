@@ -98,8 +98,9 @@ class AlarmDecoder(Thread):
     # 0000000010100010001010101000001000000001010101010101010101010100
     BASELINE = 0xA22A8201555554
     # 0000000000000000000000000000000000000010101010101010101010101010
-    VALIDITY_MASK = 0x2AAAAAA
-
+    STATUS_VALIDITY_MASK = 0x2AAAAAA
+    # 1010101010101010101010101010101000000000000000000000000000000000
+    INPUT_VALIDITY_MASK = 0xAAAAAAAA
     # 0000000000000000000000000100000000000000000000101010000000000000
     USER_INPUT_1 = 0x400002A000
     # 0000000000000000000000000001000000000000000000000000100000000010
@@ -226,7 +227,7 @@ class AlarmDecoder(Thread):
         lower_word = long(words[1], base=16)
         new_state = (upper_word << 31) | lower_word
         # perform bitwise validation
-        if new_state & AlarmDecoder.VALIDITY_MASK != 0:
+        if new_state & AlarmDecoder.INPUT_VALIDITY_MASK != 0 && new_state & AlarmDecoder.STATUS_VALIDITY_MASK != 0:
             bin_string = '{0:b}'.format(new_state).zfill(64)
             log.warn('Ignoring invalid alarm status word: {} derived from {}'.format(bin_string, state_string))
             return
