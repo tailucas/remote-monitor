@@ -227,7 +227,7 @@ class AlarmDecoder(Thread):
         lower_word = long(words[1], base=16)
         new_state = (upper_word << 31) | lower_word
         # perform bitwise validation
-        if new_state & AlarmDecoder.INPUT_VALIDITY_MASK != 0 && new_state & AlarmDecoder.STATUS_VALIDITY_MASK != 0:
+        if (new_state & AlarmDecoder.INPUT_VALIDITY_MASK != 0) and (new_state & AlarmDecoder.STATUS_VALIDITY_MASK != 0):
             bin_string = '{0:b}'.format(new_state).zfill(64)
             log.warn('Ignoring invalid alarm status word: {} derived from {}'.format(bin_string, state_string))
             return
