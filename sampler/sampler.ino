@@ -7,10 +7,10 @@ const int clock_duration = 220;
 const int clock_preamble = clock_duration*2;
 const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
-const int sample_count = 7;
-const int sample_threshold = sample_count / 2;
+// 0xAAAAAAAA
+const unsigned long validity_mask1 = 2863311530;
 // 0xAAAAAA
-const unsigned long validity_mask = 11184810;
+const unsigned long validity_mask2 = 11184810;
 // for printing
 unsigned long last_print_ts = 0;
 const long print_interval = 10000000;
@@ -26,8 +26,8 @@ volatile unsigned long prev_data_word2 = 0;
 volatile boolean word_ready = false;
 volatile boolean in_word = false;
 volatile boolean changed = false;
-volatile int sample_iterator = 0;
 volatile int sample_value = 0;
+volatile int values_sampled = 0;
 void int_clock() {
   // update timings
   now = micros();
@@ -46,12 +46,15 @@ void int_clock() {
   if (!in_word) {
     return;
   }
-  // sample the value
+  // sample the value for half of the clock interval and an odd number of times
   sample_value = 0;
-  for (sample_iterator=0; sample_iterator<sample_count; sample_iterator++) {
+  values_sampled = 0;
+  do {
     sample_value += digitalRead(dataPin);
-  }
-  if (sample_value < sample_threshold) {
+    values_sampled++;
+  } while (((micros() - last_clock_ts) < (clock_duration / 2)) && ((values_sampled & 1) != 0));
+  // threshold the sampled value
+  if (sample_value < (values_sampled / 2)) {
     sample_value = LOW;
   } else {
     sample_value = HIGH;
@@ -76,8 +79,8 @@ void int_clock() {
   bit_pos++;
   // exit
   if (bit_pos >= 64) {
-    // validate data_word2
-    if (data_word2 & validity_mask != 0) {
+    // validate each word based on the expected mask pattern
+    if ((data_word2 & validity_mask2 != 0) && (data_word1 & validity_mask1 != 0)) {
       bit_pos = 0;
       in_word = false;
       return;
