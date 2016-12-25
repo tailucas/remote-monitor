@@ -225,46 +225,75 @@ class AlarmDecoder(Thread):
         words = state_string.split(',')
         upper_word = long(words[0], base=16)
         lower_word = long(words[1], base=16)
-        new_state = (upper_word << 31) | lower_word
+        new_state_with_check_bits = (upper_word << 31) | lower_word
+        new_state = AlarmDecoder.BASELINE ^ new_state_with_check_bits
         # word containing valid state change
-        if ((AlarmDecoder.BASELINE ^ new_state) & AlarmDecoder.STATUS_VALIDITY_MASK == 0) and (new_state != self._alarm_state):
+        if (new_state & AlarmDecoder.STATUS_VALIDITY_MASK == 0) and (new_state != self._alarm_state):
             self._alarm_state = new_state
             # set the individual zone states
             now = time.time()
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ARM == AlarmDecoder.ARM:
+            if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
                 self._zone_states[AlarmDecoder.ARM] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.STAY == AlarmDecoder.STAY:
+            if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
                 self._zone_states[AlarmDecoder.STAY] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
+            if new_state & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
                 self._zone_states[AlarmDecoder.AC_LB] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.READY == AlarmDecoder.READY:
+            if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
                 self._zone_states[AlarmDecoder.READY] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+            if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
                 self._zone_states[AlarmDecoder.ZONE_1] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+            if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
                 self._zone_states[AlarmDecoder.ZONE_2] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+            if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
                 self._zone_states[AlarmDecoder.ZONE_3] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+            if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
                 self._zone_states[AlarmDecoder.ZONE_4] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+            if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
                 self._zone_states[AlarmDecoder.ZONE_5] = now
-            if (AlarmDecoder.BASELINE ^ self._alarm_state) & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+            if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
                 self._zone_states[AlarmDecoder.ZONE_6] = now
             # debugging
-            bin_string = '{0:b}'.format(AlarmDecoder.BASELINE ^ self._alarm_state).zfill(64)
+            bin_string = '{0:b}'.format(new_state).zfill(64)
             log.debug('Alarm state has changed to: {}'.format(bin_string))
             to_string = str(self)
             if len(to_string) > 0:
                 log.debug('Alarm state description: {}'.format(to_string))
-        elif ((AlarmDecoder.BASELINE ^ new_state) & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
-            if (AlarmDecoder.BASELINE ^ new_state) & AlarmDecoder.USER_INPUT_1 == AlarmDecoder.USER_INPUT_1:
+        elif (new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
+            if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
+                log.info('User input 0')
+            if new_state & AlarmDecoder.USER_INPUT_1 == AlarmDecoder.USER_INPUT_1:
                 log.info('User input 1')
-            if (AlarmDecoder.BASELINE ^ new_state) & AlarmDecoder.USER_INPUT_2 == AlarmDecoder.USER_INPUT_2:
+            if new_state & AlarmDecoder.USER_INPUT_2 == AlarmDecoder.USER_INPUT_2:
                 log.info('User input 2')
+            if new_state & AlarmDecoder.USER_INPUT_3 == AlarmDecoder.USER_INPUT_3:
+                log.info('User input 3')
+            if new_state & AlarmDecoder.USER_INPUT_4 == AlarmDecoder.USER_INPUT_4:
+                log.info('User input 4')
+            if new_state & AlarmDecoder.USER_INPUT_5 == AlarmDecoder.USER_INPUT_5:
+                log.info('User input 5')
+            if new_state & AlarmDecoder.USER_INPUT_6 == AlarmDecoder.USER_INPUT_6:
+                log.info('User input 6')
+            if new_state & AlarmDecoder.USER_INPUT_7 == AlarmDecoder.USER_INPUT_7:
+                log.info('User input 7')
+            if new_state & AlarmDecoder.USER_INPUT_8 == AlarmDecoder.USER_INPUT_8:
+                log.info('User input 8')
+            if new_state & AlarmDecoder.USER_INPUT_9 == AlarmDecoder.USER_INPUT_9:
+                log.info('User input 9')
+            if new_state & AlarmDecoder.USER_INPUT_AST == AlarmDecoder.USER_INPUT_AST:
+                log.info('User input *')
+            if new_state & AlarmDecoder.USER_INPUT_HASH == AlarmDecoder.USER_INPUT_HASH:
+                log.info('User input #')
+            if new_state & AlarmDecoder.USER_INPUT_STAY == AlarmDecoder.USER_INPUT_STAY:
+                log.info('User input STAY')
+            if new_state & AlarmDecoder.USER_INPUT_BYPASS == AlarmDecoder.USER_INPUT_BYPASS:
+                log.info('User input BYPASS')
+            if new_state & AlarmDecoder.USER_INPUT_INSTANT == AlarmDecoder.USER_INPUT_INSTANT:
+                log.info('User input INSTANT')
+            if new_state & AlarmDecoder.USER_INPUT_CODE == AlarmDecoder.USER_INPUT_CODE:
+                log.info('User input CODE')
         else:
             bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.warn('Ignoring invalid alarm status word: {} derived from {}'.format(bin_string, state_string))
+            log.warn('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, state_string))
             return
 
     def __str__(self):
