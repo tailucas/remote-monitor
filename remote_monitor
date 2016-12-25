@@ -254,43 +254,44 @@ class AlarmDecoder(Thread):
                 self._zone_states[AlarmDecoder.ZONE_6] = now
             # debugging
             bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.debug('Alarm state has changed to: {}'.format(bin_string))
+            log.debug('House alarm state has changed to: {}'.format(bin_string))
             to_string = str(self)
             if len(to_string) > 0:
-                log.debug('Alarm state description: {}'.format(to_string))
+                log.info('House alarm: {}'.format(to_string))
         elif (new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
+            user_input_string = 'House alarm: User input {}'
             if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
-                log.info('User input 0')
+                log.debug(user_input_string.format('0'))
             if new_state & AlarmDecoder.USER_INPUT_1 == AlarmDecoder.USER_INPUT_1:
-                log.info('User input 1')
+                log.debug(user_input_string.format('1'))
             if new_state & AlarmDecoder.USER_INPUT_2 == AlarmDecoder.USER_INPUT_2:
-                log.info('User input 2')
+                log.debug(user_input_string.format('2'))
             if new_state & AlarmDecoder.USER_INPUT_3 == AlarmDecoder.USER_INPUT_3:
-                log.info('User input 3')
+                log.debug(user_input_string.format('3'))
             if new_state & AlarmDecoder.USER_INPUT_4 == AlarmDecoder.USER_INPUT_4:
-                log.info('User input 4')
+                log.debug(user_input_string.format('4'))
             if new_state & AlarmDecoder.USER_INPUT_5 == AlarmDecoder.USER_INPUT_5:
-                log.info('User input 5')
+                log.debug(user_input_string.format('5'))
             if new_state & AlarmDecoder.USER_INPUT_6 == AlarmDecoder.USER_INPUT_6:
-                log.info('User input 6')
+                log.debug(user_input_string.format('6'))
             if new_state & AlarmDecoder.USER_INPUT_7 == AlarmDecoder.USER_INPUT_7:
-                log.info('User input 7')
+                log.debug(user_input_string.format('7'))
             if new_state & AlarmDecoder.USER_INPUT_8 == AlarmDecoder.USER_INPUT_8:
-                log.info('User input 8')
+                log.debug(user_input_string.format('8'))
             if new_state & AlarmDecoder.USER_INPUT_9 == AlarmDecoder.USER_INPUT_9:
-                log.info('User input 9')
+                log.debug(user_input_string.format('9'))
             if new_state & AlarmDecoder.USER_INPUT_AST == AlarmDecoder.USER_INPUT_AST:
-                log.info('User input *')
+                log.debug(user_input_string.format('*'))
             if new_state & AlarmDecoder.USER_INPUT_HASH == AlarmDecoder.USER_INPUT_HASH:
-                log.info('User input #')
+                log.debug(user_input_string.format('#'))
             if new_state & AlarmDecoder.USER_INPUT_STAY == AlarmDecoder.USER_INPUT_STAY:
-                log.info('User input STAY')
+                log.debug(user_input_string.format('STAY'))
             if new_state & AlarmDecoder.USER_INPUT_BYPASS == AlarmDecoder.USER_INPUT_BYPASS:
-                log.info('User input BYPASS')
+                log.debug(user_input_string.format('BYPASS'))
             if new_state & AlarmDecoder.USER_INPUT_INSTANT == AlarmDecoder.USER_INPUT_INSTANT:
-                log.info('User input INSTANT')
+                log.debug(user_input_string.format('INSTANT'))
             if new_state & AlarmDecoder.USER_INPUT_CODE == AlarmDecoder.USER_INPUT_CODE:
-                log.info('User input CODE')
+                log.debug(user_input_string.format('CODE'))
         else:
             bin_string = '{0:b}'.format(new_state).zfill(64)
             log.warn('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, state_string))
