@@ -78,6 +78,8 @@ zmq_context.setsockopt(zmq.LINGER, 0)
 
 class AlarmDecoder(Thread):
 
+    ZONE_DEBOUNCE_SECONDS = 2
+
     # Baseline:           0000000010100010001010101000001000000001010101010101010101010100
     # Ready:              0000000010100010001010101000001000000001010101010101010101010000
     # AC/LB + Ready:      0000000010100010001010101000001000000001010101010100010101010000
@@ -257,7 +259,7 @@ class AlarmDecoder(Thread):
             log.debug('House alarm state has changed to: {}'.format(bin_string))
             to_string = str(self)
             if len(to_string) > 0:
-                log.info('House alarm: {}'.format(to_string))
+                log.debug('House alarm: {}'.format(to_string))
         elif (new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
             user_input_string = 'House alarm: User input {}'
             if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
@@ -300,17 +302,17 @@ class AlarmDecoder(Thread):
     def __str__(self):
         zone_summary = list()
         now = time.time()
-        if now - self._zone_states[AlarmDecoder.ZONE_1] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_1] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z1'))
-        if now - self._zone_states[AlarmDecoder.ZONE_2] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_2] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z2'))
-        if now - self._zone_states[AlarmDecoder.ZONE_3] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_3] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z3'))
-        if now - self._zone_states[AlarmDecoder.ZONE_4] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_4] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z4'))
-        if now - self._zone_states[AlarmDecoder.ZONE_5] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_5] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z5'))
-        if now - self._zone_states[AlarmDecoder.ZONE_6] <= 2:
+        if now - self._zone_states[AlarmDecoder.ZONE_6] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
         return ', '.join(zone_summary)
 
