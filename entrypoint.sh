@@ -14,6 +14,8 @@ elif [ -n "$ROOT_PASSWORD" ]; then
   # SSH login fix. Otherwise user is kicked off after login
   sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
 fi
+# reload sshd
+service ssh reload
 
 # aws code commit
 if [ -n "${AWS_REPO_SSH_KEY_ID:-}" ]; then
@@ -72,7 +74,7 @@ export DEVICE_NAME="$(python /app/resin --get-device-name)" || [ -n "${DEVICE_NA
 echo "$DEVICE_NAME" > "$HN_CACHE"
 echo "$DEVICE_NAME" > /etc/hostname
 # apply the new hostname
-/etc/init.d/hostname.sh start
+hostnamectl set-hostname "$DEVICE_NAME"
 # update hosts
 echo "127.0.1.1 ${DEVICE_NAME}" >> /etc/hosts
 
@@ -86,13 +88,8 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
   echo "*.*          @@${RSYSLOG_SERVER}${RSYSLOG_TEMPLATE:-}" >> /etc/rsyslog.d/custom.conf
   set -x
 fi
-# supervisor runs rsyslog; destroy the PID file to work around
-# inability (by rsyslogd or start-stop-daemon?) to detect the
-# stale PID that could be reused by another process.
-# The result is that the rsyslogd process is treated as running
-# when it is not.
-# loosely related: https://github.com/vmware/harbor/issues/1163
-rm -f /var/run/rsyslogd.pid
+# bounce rsyslog with the new configuration
+service rsyslog restart
 
 # log archival (no tee for secrets)
 if [ -d /var/awslogs/etc/ ]; then
@@ -168,10 +165,12 @@ export USER="${APP_USER}"
 export HOME=/data/
 echo "export HISTFILE=/data/.bash_history_\${USER}" >> /etc/bash.bashrc
 
-# I'm the supervisor
-cat /app/config/supervisord.conf | python /app/config_interpol | tee /etc/supervisor/conf.d/supervisord.conf
-
-trap 'kill -TERM $PID; wait $PID; exit $?' TERM INT HUP
-/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf &
-PID=$!
-wait $PID
+# systemd configuration
+for systemdsvc in app; do
+  cat "/app/config/systemd.${systemdsvc}.service" | python /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
+  chmod 664 "/etc/systemd/system/${systemdsvc}.service"
+done
+systemctl daemon-reload
+for systemdsvc in app; do
+  systemctl start "${systemdsvc}"
+done

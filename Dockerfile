@@ -1,4 +1,5 @@
 FROM resin/raspberrypi-debian:latest
+ENV INITSYSTEM on
 
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
@@ -20,6 +21,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     less \
     libffi-dev \
     libssl-dev \
+    lsof \
     make \
     man-db \
     manpages \
@@ -34,7 +36,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     python-smbus \
     rsyslog \
     ssl-cert \
-    supervisor \
+    strace \
     vim \
     wavemon \
     wget \
@@ -63,4 +65,4 @@ RUN ARDUINODIR=/usr/share/arduino \
     SERIALDEV=/dev/ttyACM0 \
     make
 
-ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/entrypoint.sh"]
