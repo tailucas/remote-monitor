@@ -53,7 +53,8 @@ RUN ARDUINODIR=/usr/share/arduino \
     BOARD=uno \
     SERIALDEV=/dev/ttyACM0 \
     make
+WORKDIR /
 
 # ssh, zmq
 EXPOSE 22 5556 5558
-CMD ["./app/entrypoint.sh"]
+CMD ["/app/entrypoint.sh"]
