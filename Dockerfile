@@ -4,8 +4,7 @@ ENV INITSYSTEM on
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 
-COPY ./pipstrap.py /tmp/
-
+COPY . /app
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
     arduino \
     ca-certificates \
@@ -43,20 +42,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     # pip 8
     && python /tmp/pipstrap.py
 
-# ssh, zmq
-EXPOSE 22 5556 5558
-
-# sshd configuration
-RUN mkdir /var/run/sshd
-RUN mkdir /root/.ssh/
-
-COPY . /app
-COPY ./entrypoint.sh /
-
-COPY ./config/pip_freeze /tmp/
-RUN pip install -r /tmp/pip_freeze
-# show outdated packages since the freeze
-RUN pip list --outdated
+RUN pip install -r /app/config/requirements.txt
 
 # build the Arduino image
 WORKDIR /app/sampler
@@ -65,4 +51,6 @@ RUN ARDUINODIR=/usr/share/arduino \
     SERIALDEV=/dev/ttyACM0 \
     make
 
-CMD ["/entrypoint.sh"]
+# ssh, zmq
+EXPOSE 22 5556 5558
+CMD ["./app/entrypoint.sh"]
