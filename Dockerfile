@@ -42,7 +42,8 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     # pip 8
     && python /tmp/pipstrap.py
 
-RUN pip install -r /app/config/requirements.txt
+COPY ./config/requirements.txt /tmp/
+RUN pip install -r /tmp/requirements.txt
 
 COPY . /app
 
