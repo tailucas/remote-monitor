@@ -40,7 +40,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     wavemon \
     wget \
     # pip 8
-    && python /tmp/pipstrap.py
+    && python /app/pipstrap.py
 
 RUN pip install -r /app/config/requirements.txt
 
