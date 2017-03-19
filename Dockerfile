@@ -55,6 +55,9 @@ RUN ARDUINODIR=/usr/share/arduino \
     make
 WORKDIR /
 
+# Resin systemd
+COPY ./config/systemd.launch.service /etc/systemd/system/launch.service.d/app_override.conf
+
 # ssh, zmq
 EXPOSE 22 5556 5558
 CMD ["/app/entrypoint.sh"]

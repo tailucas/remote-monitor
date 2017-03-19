@@ -2,6 +2,8 @@
 import os
 import sys
 
+from collections import OrderedDict
+
 from ConfigParser import SafeConfigParser, InterpolationMissingOptionError, NoOptionError
 
 
@@ -41,13 +43,13 @@ if __name__ == "__main__":
         with open(sys.argv[1], 'r') as fp:
             overlay_config = load_config(fp)
     config = load_config(sys.stdin)
-    sections = dict()
+    sections = OrderedDict()
     try:
         for section in config.sections():
             # we don't use config.items() here to avoid emitting the defaults too
             for option in config.options(section=section):
                 value = None
-                if overlay_config and overlay_config.has_section(section):
+                if overlay_config and overlay_config.has_section(section) and overlay_config.has_option(section, option):
                     value = overlay_config.get(section=section, option=option, vars=os.environ)
                 if value is None:
                     value = config.get(section=section, option=option, vars=os.environ)

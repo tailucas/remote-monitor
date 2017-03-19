@@ -161,17 +161,14 @@ if [ "${PROGRAMMER:-}" == "1" ]; then
   popd
 fi
 
-# Used by resin-sdk Settings
-export USER="${APP_USER}"
-export HOME=/data/
-echo "export HISTFILE=/data/.bash_history_\${USER}" >> /etc/bash.bashrc
+echo "export HISTFILE=/data/.bash_history" >> /etc/bash.bashrc
 
 # systemd configuration
 for systemdsvc in app; do
-  cat "/app/config/systemd.${systemdsvc}.service" | python /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
-  chmod 664 "/etc/systemd/system/${systemdsvc}.service"
-done
-systemctl daemon-reload
-for systemdsvc in app; do
-  systemctl start "${systemdsvc}"
+  if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
+    cat "/app/config/systemd.${systemdsvc}.service" | python /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
+    chmod 664 "/etc/systemd/system/${systemdsvc}.service"
+    systemctl daemon-reload
+    systemctl start "${systemdsvc}"&
+  fi
 done
