@@ -5,7 +5,7 @@ set -o pipefail
 # Resin API key
 export RESIN_API_KEY="${RESIN_API_KEY:-$API_KEY_RESIN}"
 # root user access, prefer key
-mkdir /root/.ssh/
+mkdir -p /root/.ssh/
 if [ -n "$SSH_AUTHORIZED_KEY" ]; then
   echo "$SSH_AUTHORIZED_KEY" > /root/.ssh/authorized_keys
   chmod 600 /root/.ssh/authorized_keys
@@ -88,9 +88,9 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
   fi
   echo "*.*          @@${RSYSLOG_SERVER}${RSYSLOG_TEMPLATE:-}" >> /etc/rsyslog.d/custom.conf
   set -x
+  # bounce rsyslog with the new configuration
+  service rsyslog restart
 fi
-# bounce rsyslog with the new configuration
-service rsyslog restart
 
 # log archival (no tee for secrets)
 if [ -d /var/awslogs/etc/ ]; then
@@ -169,6 +169,7 @@ for systemdsvc in app; do
     cat "/app/config/systemd.${systemdsvc}.service" | python /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
     systemctl daemon-reload
+    systemctl enable "${systemdsvc}"
     systemctl start "${systemdsvc}"&
   fi
 done

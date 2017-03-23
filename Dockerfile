@@ -17,6 +17,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     git \
     htop \
     i2c-tools \
+    ifupdown \
     less \
     libffi-dev \
     libssl-dev \
