@@ -47,8 +47,11 @@ id -u "${APP_USER}" || useradd -r -g "${APP_GROUP}" "${APP_USER}"
 chown -R "${APP_USER}:${APP_GROUP}" /app/
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
-# pidfile
-chown "${APP_USER}" /var/run/
+# pidfile access
+chown "${APP_USER}" /run/
+if [ -e "/var/run/${APP_NAME}.pid" ]; then
+  chown "${APP_USER}" "/var/run/${APP_NAME}.pid"
+fi
 
 TZ_CACHE=/data/localtime
 # a valid symlink
