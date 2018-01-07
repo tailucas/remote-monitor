@@ -57,11 +57,12 @@ log = logging.getLogger(APP)
 # no console by default
 log.propagate = False
 
+# FIXME: benchmark this to supply voltage using test pin or something else
 ADC_SAMPLE_MAX = 5.0
 HEARTBEAT_INTERVAL_SECONDS = 5
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 SAMPLE_INTERVAL_SECONDS = 0.1
-SAMPLE_DEVIATION_TOLERANCE = 5
+SAMPLE_DEVIATION_TOLERANCE = 10
 DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
 URL_WORKER_UPLOADER = 'inproc://uploader'
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
