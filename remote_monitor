@@ -180,10 +180,10 @@ class AlarmDecoder(Thread):
         self.daemon = True
         self._alarm_state = 0
         # serial
-        #self._com1 = serial.Serial(
-        #    port=config.get('serial', 'port'),
-        #    baudrate=config.getint('serial', 'baudrate'),
-        #    timeout=1)
+        self._com1 = serial.Serial(
+            port=config.get('serial', 'port'),
+            baudrate=config.getint('serial', 'baudrate'),
+            timeout=1)
         # state init
         self._zone_states = dict()
         self._zone_states[AlarmDecoder.ARM] = \
@@ -201,7 +201,7 @@ class AlarmDecoder(Thread):
         while True:
             # serial data for the alarm device type
             try:
-                alarm_state_data = ""
+                alarm_state_data = self._com1.readline()
                 while len(alarm_state_data) > 0:
                     self.set_state(alarm_state_data)
                     alarm_state_data = self._com1.readline()
