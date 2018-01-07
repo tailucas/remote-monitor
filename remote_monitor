@@ -260,7 +260,7 @@ class AlarmDecoder(Thread):
             log.debug('House alarm state has changed to: {}'.format(bin_string))
             to_string = str(self)
             if len(to_string) > 0:
-                log.debug('House alarm: {}'.format(to_string))
+                log.info('House alarm: {}'.format(to_string))
         elif (new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
             user_input_string = 'House alarm: User input {}'
             if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
@@ -736,6 +736,7 @@ if __name__ == "__main__":
                     device_history[device_key] = (normalized_value, time.time(), event_detail)
                     # add the input device to the 'active' list
                     active_devices.append(input_device)
+                    log.info("'{}' (detail: {})".format(device_event_distinction, event_detail))
             if len(active_devices) > 0:
                 uploader_socket.send_pyobj({
                     'samples': output_samples,
