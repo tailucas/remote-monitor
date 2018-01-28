@@ -640,9 +640,6 @@ if __name__ == "__main__":
 
     samples_processed = 0
 
-    meter_history = dict()
-    meters_last_posted = 0
-
     input_normal_values = dict(config.items('input_normal_values'))
     tamper_label = config.get('app', 'tamper_label')
     input_tamper_values = dict(config.items('input_tamper_values'))
@@ -654,7 +651,6 @@ if __name__ == "__main__":
         last_upload = 0
         device_history = dict()
         while True:
-
             active_devices = list()
             output_samples = dict()
             for i in input_to_adc.keys():
@@ -675,9 +671,6 @@ if __name__ == "__main__":
                                                                   device_key,
                                                                   SAMPLE_DEVIATION_TOLERANCE))
                 if abs(normalized_value - input_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                    if 'meter' in device_key.lower() and device_key in meter_history:
-                        meter_value, meter_state = meter_history[device_key]
-                        meter_history[device_key] = (meter_value, False)
                     # forget that this device was active
                     if device_key in device_history:
                         log.debug("'{}' is no longer active.".format(device_key))
@@ -686,57 +679,38 @@ if __name__ == "__main__":
                     continue
 
                 # a device has now gone out of normal range
-
-                if 'meter' in device_key.lower():
-                    if device_key not in meter_history:
-                        meter_history[device_key] = (1, True)
-                    meter_value, meter_state = meter_history[device_key]
-                    # latch
-                    if not meter_state:
-                        meter_history[device_key] = (meter_value+1, True)
-                    if time.time() - meters_last_posted >= int(config.get('app', 'meter_sample_interval_seconds')):
-                        meter_value, meter_state = meter_history[device_key]
-                        log.debug('{} metered {}'.format(device_key, meter_value))
-                        meters_last_posted = time.time()
-                        meter_history[device_key] = (0, True)
-                        input_device = copy.copy(input_devices[i])
-                        input_device['sample_value'] = meter_value
-                        active_devices.append(input_device)
-                    else:
+                device_event_distinction = device_key
+                output_samples[device_key] = int(normalized_value)
+                input_device = copy.copy(input_devices[i])
+                input_device['sample_value'] = int(normalized_value)
+                event_detail = None
+                if i in input_tamper_values:
+                    tamper_value = int(input_tamper_values[i])
+                    if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
+                        event_detail = tamper_label
+                        device_event_distinction = '{} {}'.format(device_key, tamper_label)
+                # decorate the alarm input type if it is not in a fault state
+                if device_type.lower() == 'alarm':
+                    event_detail = str(alarm_decoder)
+                # now include the event detail
+                if event_detail:
+                    input_device['event_detail'] = event_detail
+                # determine whether the value has changed
+                if device_key in device_history:
+                    historic_value, sampled_at, historic_detail = device_history[device_key]
+                    # has the value stayed the same?
+                    if abs(normalized_value - historic_value) <= SAMPLE_DEVIATION_TOLERANCE and event_detail == historic_detail:
+                        # sample to avoid log spam
+                        if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
+                            log.debug("Debouncing '{}' (detail: {}) activated {} seconds "
+                                      "ago.".format(device_event_distinction, event_detail,
+                                                    int(time.time() - sampled_at)))
                         continue
-                else:
-                    device_event_distinction = device_key
-                    output_samples[device_key] = int(normalized_value)
-                    input_device = copy.copy(input_devices[i])
-                    input_device['sample_value'] = int(normalized_value)
-                    event_detail = None
-                    if i in input_tamper_values:
-                        tamper_value = int(input_tamper_values[i])
-                        if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
-                            event_detail = tamper_label
-                            device_event_distinction = '{} {}'.format(device_key, tamper_label)
-                    # decorate the alarm input type if it is not in a fault state
-                    if device_type.lower() == 'alarm':
-                        event_detail = str(alarm_decoder)
-                    # now include the event detail
-                    if event_detail:
-                        input_device['event_detail'] = event_detail
-                    # determine whether the value has changed
-                    if device_key in device_history:
-                        historic_value, sampled_at, historic_detail = device_history[device_key]
-                        # has the value stayed the same?
-                        if abs(normalized_value - historic_value) <= SAMPLE_DEVIATION_TOLERANCE and event_detail == historic_detail:
-                            # sample to avoid log spam
-                            if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
-                                log.debug("Debouncing '{}' (detail: {}) activated {} seconds "
-                                          "ago.".format(device_event_distinction, event_detail,
-                                                        int(time.time() - sampled_at)))
-                            continue
-                    # update the device history and treat as active
-                    device_history[device_key] = (normalized_value, time.time(), event_detail)
-                    # add the input device to the 'active' list
-                    active_devices.append(input_device)
-                    log.info("'{}' (detail: {})".format(device_event_distinction, event_detail))
+                # update the device history and treat as active
+                device_history[device_key] = (normalized_value, time.time(), event_detail)
+                # add the input device to the 'active' list
+                active_devices.append(input_device)
+                log.info("'{}' (detail: {})".format(device_event_distinction, event_detail))
             if len(active_devices) > 0:
                 uploader_socket.send_pyobj({
                     'samples': output_samples,

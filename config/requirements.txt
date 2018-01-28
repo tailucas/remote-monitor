@@ -1,6 +1,5 @@
 RPi.GPIO
 argparse
-boto
 pyserial
 python-dateutil
 pytz
