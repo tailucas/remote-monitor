@@ -711,7 +711,7 @@ if __name__ == "__main__":
                 device_history[device_key] = (normalized_value, time.time(), event_detail)
                 # add the input device to the 'active' list
                 active_devices.append(input_device)
-                log.info("'{}' (detail: {})".format(device_event_distinction, event_detail))
+                log.info("'{}' (detail: {}, sampled: {})".format(device_event_distinction, event_detail, normalized_value))
             if len(active_devices) > 0:
                 uploader_socket.send_pyobj({
                     'samples': output_samples,
