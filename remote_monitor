@@ -226,8 +226,12 @@ class AlarmDecoder(Thread):
             log.debug('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
             return
         words = state_string.split(',')
-        upper_word = long(words[0], base=16)
-        lower_word = long(words[1], base=16)
+        try:
+            upper_word = long(words[0], base=16)
+            lower_word = long(words[1], base=16)
+        except ValueError:
+            log.debug('Ignoring invalid alarm decoder word: [{}]'.format(words))
+            return
         new_state_with_check_bits = (upper_word << 31) | lower_word
         new_state = AlarmDecoder.BASELINE ^ new_state_with_check_bits
         # word containing valid state change
