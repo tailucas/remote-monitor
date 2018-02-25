@@ -636,8 +636,7 @@ if __name__ == "__main__":
 
     # alarm decoder
     alarm_decoder = AlarmDecoder()
-    #TODO: fix
-    #alarm_decoder.start()
+    alarm_decoder.start()
 
     samples_processed = 0
 
