@@ -9,7 +9,7 @@ ExecStart=/usr/bin/python /app/%(APP_NAME)s
 Restart=always
 User=%(APP_USER)s
 Group=%(APP_GROUP)s
-Environment="HOME=/data/" "USER=%(APP_USER)s" "PYTHONPATH=/app/libs/IOPi/:/app/libs/ADCPi/:/app/:${PYTHONPATH:-}"
+EnvironmentFile=/app/environment.env
 
 [Install]
 WantedBy=multi-user.target

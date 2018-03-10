@@ -164,6 +164,12 @@ if [ "${PROGRAMMER:-}" == "1" ]; then
   popd
 fi
 
+# Load app environment, overriding HOME and USER
+# https://www.freedesktop.org/software/systemd/man/systemd.exec.html
+cat /etc/docker.env | egrep -v "^HOME|^USER" > /app/environment.env
+echo "HOME=/data/" >> /app/environment.env
+echo "USER=${APP_USER}" >> /app/environment.env
+
 echo "export HISTFILE=/data/.bash_history" >> /etc/bash.bashrc
 
 # systemd configuration

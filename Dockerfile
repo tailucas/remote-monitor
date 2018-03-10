@@ -47,6 +47,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
 
 COPY ./config/requirements.txt /tmp/
 RUN pip install -r /tmp/requirements.txt
+RUN pip install git+https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git
 
 COPY . /app
 
