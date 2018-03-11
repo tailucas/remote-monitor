@@ -13,9 +13,8 @@ import time
 import umsgpack
 import zmq
 
-from ABE_helpers import ABEHelpers
-from ABE_ADCPi import ADCPi
-from ABE_IoPi import IoPi
+from ADCPi import ADCPi
+from IOPi import IOPi
 
 from ConfigParser import ConfigParser
 
@@ -548,24 +547,19 @@ if __name__ == "__main__":
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
 
-    # i2c
-    i2c_bus = ABEHelpers().get_smbus()
-
     # process configuration
     adcs = dict()
     for adc, address in config.items('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
         address = address.split(',')
-        adcs[adc] = ADCPi(i2c_bus,
-                          int(address[0], 16),
+        adcs[adc] = ADCPi(int(address[0], 16),
                           int(address[1], 16),
                           12)
 
     ios = dict()
     for io, address in config.items('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
-        io_port = IoPi(i2c_bus,
-                       int(address, 16))
+        io_port = IOPi(int(address, 16))
         # set port direction to output
         io_port.set_port_direction(0, 0x00)
         io_port.set_port_direction(1, 0x00)
