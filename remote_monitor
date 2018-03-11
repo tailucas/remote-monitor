@@ -21,6 +21,7 @@ from ConfigParser import ConfigParser
 
 from datetime import datetime
 from random import randint
+from raven import Client as Sentry
 from serial.serialutil import SerialException
 from threading import Thread
 from time import sleep
@@ -76,6 +77,8 @@ config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 
 zmq_context = zmq.Context()
 zmq_context.setsockopt(zmq.LINGER, 0)
+
+sentry = Sentry()
 
 
 class AlarmDecoder(Thread):
@@ -348,6 +351,8 @@ class Uploader(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
+                sentry.captureException()
+                sleep(1)
                 continue
 
     @staticmethod
@@ -408,6 +413,8 @@ class DeviceActivator(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
+                sentry.captureException()
+                sleep(1)
                 continue
 
 
@@ -448,6 +455,8 @@ class Relay(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
+                sentry.captureException()
+                sleep(1)
                 continue
 
 
@@ -493,6 +502,8 @@ class RelayControl(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
+                sentry.captureException()
+                sleep(1)
                 continue
 
     def add_output(self, device_key, relay):
