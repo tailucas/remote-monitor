@@ -100,8 +100,8 @@ void int_clock() {
 void setup() {
   Serial.begin(9600);
   pinMode(ledPin, OUTPUT);
-  pinMode(interruptPin, INPUT_PULLUP);
-  pinMode(dataPin, INPUT_PULLUP);
+  pinMode(interruptPin, INPUT);
+  pinMode(dataPin, INPUT);
   // older compiler
   //attachInterrupt(digitalPinToInterrupt(interruptPin), int_clock, CHANGE);
   //Board	        int.0	int.1	int.2	int.3	int.4	int.5
