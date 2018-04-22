@@ -16,7 +16,7 @@ import zmq
 from ADCPi import ADCPi
 from IOPi import IOPi
 
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 
 from datetime import datetime
 from random import randint
@@ -230,8 +230,8 @@ class AlarmDecoder(Thread):
             return
         words = state_string.split(',')
         try:
-            upper_word = long(words[0], base=16)
-            lower_word = long(words[1], base=16)
+            upper_word = int(words[0], base=16)
+            lower_word = int(words[1], base=16)
         except ValueError:
             log.debug('Ignoring invalid alarm decoder word: [{}]'.format(words))
             return
@@ -363,7 +363,7 @@ class Uploader(Thread):
             timestamp = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc)
         if isinstance(timestamp, datetime):
             timestamp = timestamp.strftime(DATE_FORMAT)
-        if not isinstance(timestamp, basestring):
+        if not isinstance(timestamp, str):
             log.warn('Non-string timestamp {} for payload {}'.format(timestamp, data))
         payload['timestamp'] = timestamp
         if data is not None and len(data) > 0:
@@ -469,7 +469,7 @@ class RelayControl(Thread):
         self.socket.bind(URL_WORKER_RELAY_CTRL)
         # Push socket to control relays
         self._sockets = dict()
-        for relay, worker_url in relay_mappings.items():
+        for relay, worker_url in list(relay_mappings.items()):
             socket = zmq_context.socket(zmq.PUSH)
             self._sockets[relay] = socket
             socket.connect(worker_url)
@@ -496,7 +496,7 @@ class RelayControl(Thread):
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
             except ContextTerminated:
                 self.socket.close()
-                for socket in self._sockets.values():
+                for socket in list(self._sockets.values()):
                     socket.close()
                 break
             except Exception:
@@ -577,7 +577,7 @@ if __name__ == "__main__":
     relay_workers = list()
     relay_to_worker = dict()
     # start relays
-    for relay_name in relay_to_io.keys():
+    for relay_name in list(relay_to_io.keys()):
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
         relay.start()
@@ -596,7 +596,7 @@ if __name__ == "__main__":
     output_locations = dict(config.items('output_location'))
     device_info = dict()
     device_info['inputs'] = list()
-    for field, input_type in input_types.items():
+    for field, input_type in list(input_types.items()):
         input_name = input_names[field]
         input_location = input_locations[field]
         device_description = {
@@ -609,7 +609,7 @@ if __name__ == "__main__":
         device_info['inputs'].append(device_description)
         input_devices[field] = device_description
     device_info['outputs'] = list()
-    for field, output_type in output_types.items():
+    for field, output_type in list(output_types.items()):
         output_location = output_locations[field]
         device_key = '{} {}'.format(output_location, output_type)
         device_info['outputs'].append({
@@ -663,7 +663,7 @@ if __name__ == "__main__":
         while True:
             active_devices = list()
             output_samples = dict()
-            for i in input_to_adc.keys():
+            for i in list(input_to_adc.keys()):
                 adc_name, pin = input_to_adc[i]
                 sampled_value = adcs[adc_name].read_voltage(pin)
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100

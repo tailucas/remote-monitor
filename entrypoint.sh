@@ -74,7 +74,7 @@ if [ -e "$HN_CACHE" ]; then
   fi
 fi
 # refresh the device name and bail unless cached
-export DEVICE_NAME="$(python /app/resin --get-device-name)" || [ -n "${DEVICE_NAME:-}" ]
+export DEVICE_NAME="$(python3 /app/resin --get-device-name)" || [ -n "${DEVICE_NAME:-}" ]
 echo "$DEVICE_NAME" > "$HN_CACHE"
 echo "$DEVICE_NAME" > /etc/hostname
 # apply the new hostname
@@ -97,7 +97,7 @@ fi
 
 # log archival (no tee for secrets)
 if [ -d /var/awslogs/etc/ ]; then
-  cat /var/awslogs/etc/aws.conf | python /app/config_interpol /app/config/aws.conf > /var/awslogs/etc/aws.conf.new
+  cat /var/awslogs/etc/aws.conf | /app/config_interpol /app/config/aws.conf > /var/awslogs/etc/aws.conf.new
   mv /var/awslogs/etc/aws.conf /var/awslogs/etc/aws.conf.backup
   mv /var/awslogs/etc/aws.conf.new /var/awslogs/etc/aws.conf
 fi
@@ -117,7 +117,7 @@ fi
 export SUB_SRC="$(python /app/resin --get-devices | grep -v "$ETH0_IP" | paste -d, -s)" || [ -n "${SUB_SRC:-}" ]
 echo "$SUB_SRC" > "$SUB_CACHE"
 # application configuration (no tee for secrets)
-cat /app/config/app.conf | python /app/config_interpol > "/app/${APP_NAME}.conf"
+cat /app/config/app.conf | /app/config_interpol > "/app/${APP_NAME}.conf"
 unset ETH0_IP
 unset SUB_SRC
 
@@ -175,7 +175,7 @@ echo "export HISTFILE=/data/.bash_history" >> /etc/bash.bashrc
 # systemd configuration
 for systemdsvc in app; do
   if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
-    cat "/app/config/systemd.${systemdsvc}.service" | python /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
+    cat "/app/config/systemd.${systemdsvc}.service" | /app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
     systemctl daemon-reload
     systemctl enable "${systemdsvc}"
