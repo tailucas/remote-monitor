@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import copy
+import dateutil.parser
 import json
 import logging
 import logging.handlers
@@ -365,7 +366,7 @@ class Uploader(Thread):
 
     @staticmethod
     def make_payload(timestamp=None, data=None):
-        payload = {'timestamp': make_timestamp(timestamp, True)}
+        payload = {'timestamp': Uploader.make_timestamp(timestamp, True)}
         if data is not None and len(data) > 0:
             payload['data'] = data
         log.debug(json.dumps(payload))
