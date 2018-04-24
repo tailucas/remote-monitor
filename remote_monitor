@@ -351,17 +351,21 @@ class Uploader(Thread):
                 continue
 
     @staticmethod
-    def make_payload(timestamp=None, data=None):
-        payload = dict()
+    def make_timestamp(timestamp=None, make_string=False):
         if timestamp is None:
-            timestamp = datetime.utcnow().replace(tzinfo=pytz.utc)
+            timestamp = datetime.utcnow()
         elif isinstance(timestamp, float):
-            timestamp = datetime.utcfromtimestamp(timestamp).replace(tzinfo=pytz.utc)
-        if isinstance(timestamp, datetime):
-            timestamp = timestamp.strftime(DATE_FORMAT)
-        if not isinstance(timestamp, str):
-            log.warn('Non-string timestamp {} for payload {}'.format(timestamp, data))
-        payload['timestamp'] = timestamp
+            timestamp = datetime.utcfromtimestamp(timestamp)
+        elif isinstance(timestamp, str):
+            timestamp = dateutil.parser.parse(timestamp)
+        if make_string:
+            return timestamp.strftime(DATE_FORMAT)
+        # not naive datetime
+        return timestamp.replace(tzinfo=pytz.utc)
+
+    @staticmethod
+    def make_payload(timestamp=None, data=None):
+        payload = {'timestamp': make_timestamp(timestamp, True)}
         if data is not None and len(data) > 0:
             payload['data'] = data
         log.debug(json.dumps(payload))
