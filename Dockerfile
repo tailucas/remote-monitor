@@ -23,6 +23,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     less \
     libffi-dev \
     libssl-dev \
+    libzmq3-dev \
     lsof \
     make \
     man-db \
