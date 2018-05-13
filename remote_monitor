@@ -314,7 +314,7 @@ class AlarmDecoder(Thread):
                 log.debug(user_input_string.format('CODE'))
         else:
             bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.warn('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, state_string))
+            log.warning('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, state_string))
             return
 
     def __str__(self):
@@ -394,13 +394,13 @@ class DeviceActivator(Thread):
                 event = umsgpack.unpackb(self.listener.recv())
                 log.debug(event)
                 if 'data' not in event:
-                    log.warn('Unknown event data: {}'.format(event))
+                    log.warning('Unknown event data: {}'.format(event))
                     continue
                 event_data = event['data']
                 if 'trigger_output' in event_data:
                     output_type = event_data['trigger_output']['type']
                     if 'input_context' not in event_data:
-                        log.warn('{} requested without context, ignoring.'.format(output_type))
+                        log.warning('{} requested without context, ignoring.'.format(output_type))
                         continue
                     delay = None
                     if 'trigger_duration' in event_data:
@@ -523,7 +523,7 @@ class SignalHandler:
         signal.signal(signal.SIGHUP, self.hup)
 
     def hup(self, signum, frame):
-        log.warn('Signal {} received.'.format(signum))
+        log.warning('Signal {} received.'.format(signum))
         self.last_signal = signum
         if log.getEffectiveLevel() == logging.INFO:
             log.setLevel(logging.DEBUG)
@@ -531,7 +531,7 @@ class SignalHandler:
             log.setLevel(logging.INFO)
 
     def terminate(self, signum, frame):
-        log.warn('Signal {} received.'.format(signum))
+        log.warning('Signal {} received.'.format(signum))
         self.last_signal = signum
         raise RuntimeWarning()
 
