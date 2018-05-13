@@ -223,7 +223,7 @@ class AlarmDecoder(Thread):
             if alarm_state_data is None:
                 continue
             alarm_state_data = alarm_state_data.decode()
-            while len(alarm_state_data) > 0:
+            if len(alarm_state_data) > 0:
                 self.set_state(alarm_state_data)
             sleep(SAMPLE_INTERVAL_SECONDS)
             # throw away the intermediate data if the external sample rate exceeds our ability to consume it
