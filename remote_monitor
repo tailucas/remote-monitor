@@ -239,10 +239,17 @@ class AlarmDecoder(Thread):
             return
         # trim
         state_string = state_string.rstrip()
-        if len(state_string) == 0 or ',' not in state_string:
+        if len(state_string) == 0 or ':' not in state_string or ',' not in state_string:
             log.debug('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
             return
-        words = state_string.split(',')
+        len_words = state_string.split(':')
+        expect_len = int(len_words[0])
+        word_string = len_words[1]
+        if len(word_string) != expect_len:
+            log.debug('Ignoring invalid alarm decoder word length, '
+                      'expected {} but got {}: [{}]'.format(expect_len, len(word_string), state_string))
+            return
+        words = word_string.split(',')
         try:
             upper_word = int(words[0], base=16)
             lower_word = int(words[1], base=16)
