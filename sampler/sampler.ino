@@ -119,8 +119,8 @@ void loop() {
   if (word_ready) {
     // print immediately upon change or regularly for heartbeat
     if (changed || ((micros() - last_print_ts) > print_interval)) {
-      output_string = String(data_word1, HEX)+','+String(data_word2, HEX);
-      output_length = output_string.length();
+      String output_string = String(data_word1, HEX)+','+String(data_word2, HEX);
+      int output_length = output_string.length();
       Serial.println(String(output_length)+':'+output_string);
       last_print_ts = micros();
     }
