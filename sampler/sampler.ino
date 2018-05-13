@@ -118,8 +118,7 @@ void loop() {
   if (word_ready) {
     // print immediately upon change or regularly for heartbeat
     if (changed || ((micros() - last_print_ts) > print_interval)) {
-      output_string = sprintf("%8X,%8X", data_word1, data_word2);
-      Serial.println(output_string);
+      Serial.println(sprintf("%8X", data_word1)+','+sprintf("%8X", data_word2));
       last_print_ts = micros();
     }
     // processing complete, latch and attach the interrupt again
