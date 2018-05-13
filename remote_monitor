@@ -325,7 +325,7 @@ class AlarmDecoder(Thread):
                 log.debug(user_input_string.format('CODE'))
         else:
             bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.warning('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, state_string))
+            log.warning('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, word_string))
             return
 
     def __str__(self):

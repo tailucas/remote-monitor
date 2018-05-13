@@ -78,10 +78,11 @@ void int_clock() {
   bit_pos++;
   // exit
   if (bit_pos >= 64) {
+    // no more changes now
+    detachInterrupt(0);
     // validate each word based on the expected mask pattern
     // either a valid status pattern (first word) or a valid input pattern (both words)
     if (((data_word1 & status_validity_mask1) == 0) || ((data_word1 & input_validity_mask1) == 0 && (data_word2 & input_validity_mask2) == 0)) {
-      detachInterrupt(0);
       if (data_word1 != prev_data_word1 || data_word2 != prev_data_word2) {
         changed = true;
       } else {
@@ -97,6 +98,7 @@ void int_clock() {
       // try again, sorry
       bit_pos = 0;
       in_word = false;
+      attachInterrupt(0, int_clock, CHANGE);
     }
   }
 }
@@ -113,7 +115,6 @@ void setup() {
   attachInterrupt(0, int_clock, CHANGE);
 }
 
-char word_output[8];
 void loop() {
   // we're outside of the data word
   if (word_ready) {
