@@ -226,6 +226,8 @@ class AlarmDecoder(Thread):
             while len(alarm_state_data) > 0:
                 self.set_state(alarm_state_data)
             sleep(SAMPLE_INTERVAL_SECONDS)
+            # throw away the intermediate data if the external sample rate exceeds our ability to consume it
+            self._com1.flushInput()
 
     def stop(self):
         if not self._com1.closed:

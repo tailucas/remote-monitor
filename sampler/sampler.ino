@@ -7,6 +7,7 @@ const int clock_duration = 220;
 const int clock_preamble = clock_duration*2;
 const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
+const unsigned long validity_mask1 = 0x2A000;
 const unsigned long validity_mask2 = 0x2AAAAAA;
 // for printing
 unsigned long last_print_ts = 0;
@@ -77,6 +78,11 @@ void int_clock() {
   // exit
   if (bit_pos >= 64) {
     // validate each word based on the expected mask pattern
+    if (data_word1 & validity_mask1 != 0) {
+      bit_pos = 0;
+      in_word = false;
+      return;
+    }
     if (data_word2 & validity_mask2 != 0) {
       bit_pos = 0;
       in_word = false;
