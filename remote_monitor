@@ -216,13 +216,15 @@ class AlarmDecoder(Thread):
             # serial data for the alarm device type
             try:
                 alarm_state_data = self._com1.readline()
-                while len(alarm_state_data) > 0:
-                    self.set_state(alarm_state_data)
-                    alarm_state_data = self._com1.readline()
             except SerialException:
                 if self._com1.closed:
                     log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
                     break
+            if alarm_state_data is None:
+                continue
+            alarm_state_data = alarm_state_data.decode()
+            while len(alarm_state_data) > 0:
+                self.set_state(alarm_state_data)
             sleep(SAMPLE_INTERVAL_SECONDS)
 
     def stop(self):
@@ -333,6 +335,7 @@ class AlarmDecoder(Thread):
         if now - self._zone_states[AlarmDecoder.ZONE_6] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
             zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
         return ', '.join(zone_summary)
+
 
 class Uploader(Thread):
 
