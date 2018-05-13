@@ -259,36 +259,37 @@ class AlarmDecoder(Thread):
         new_state_with_check_bits = (upper_word << 31) | lower_word
         new_state = AlarmDecoder.BASELINE ^ new_state_with_check_bits
         # word containing valid state change
-        if (new_state & AlarmDecoder.STATUS_VALIDITY_MASK == 0) and (new_state != self._alarm_state):
-            self._alarm_state = new_state
-            # set the individual zone states
-            now = time.time()
-            if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
-                self._zone_states[AlarmDecoder.ARM] = now
-            if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
-                self._zone_states[AlarmDecoder.STAY] = now
-            if new_state & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
-                self._zone_states[AlarmDecoder.AC_LB] = now
-            if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
-                self._zone_states[AlarmDecoder.READY] = now
-            if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
-                self._zone_states[AlarmDecoder.ZONE_1] = now
-            if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
-                self._zone_states[AlarmDecoder.ZONE_2] = now
-            if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
-                self._zone_states[AlarmDecoder.ZONE_3] = now
-            if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
-                self._zone_states[AlarmDecoder.ZONE_4] = now
-            if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
-                self._zone_states[AlarmDecoder.ZONE_5] = now
-            if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
-                self._zone_states[AlarmDecoder.ZONE_6] = now
-            # debugging
-            bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.debug('House alarm state has changed to: {}'.format(bin_string))
-            to_string = str(self)
-            if len(to_string) > 0:
-                log.info('House alarm: {}'.format(to_string))
+        if new_state & AlarmDecoder.STATUS_VALIDITY_MASK == 0:
+            if new_state != self._alarm_state:
+                self._alarm_state = new_state
+                # set the individual zone states
+                now = time.time()
+                if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
+                    self._zone_states[AlarmDecoder.ARM] = now
+                if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
+                    self._zone_states[AlarmDecoder.STAY] = now
+                if new_state & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
+                    self._zone_states[AlarmDecoder.AC_LB] = now
+                if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
+                    self._zone_states[AlarmDecoder.READY] = now
+                if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
+                    self._zone_states[AlarmDecoder.ZONE_1] = now
+                if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
+                    self._zone_states[AlarmDecoder.ZONE_2] = now
+                if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
+                    self._zone_states[AlarmDecoder.ZONE_3] = now
+                if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
+                    self._zone_states[AlarmDecoder.ZONE_4] = now
+                if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
+                    self._zone_states[AlarmDecoder.ZONE_5] = now
+                if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
+                    self._zone_states[AlarmDecoder.ZONE_6] = now
+                # debugging
+                bin_string = '{0:b}'.format(new_state).zfill(64)
+                log.debug('House alarm state has changed to: {}'.format(bin_string))
+                to_string = str(self)
+                if len(to_string) > 0:
+                    log.info('House alarm: {}'.format(to_string))
         elif new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0:
             user_input_string = 'House alarm: User input {}'
             if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
