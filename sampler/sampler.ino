@@ -7,8 +7,9 @@ const int clock_duration = 220;
 const int clock_preamble = clock_duration*2;
 const int clock_preamble_tolerance = clock_preamble/10;
 const int clock_idle = 6000;
-const unsigned long validity_mask1 = 0x2A000;
-const unsigned long validity_mask2 = 0x2AAAAAA;
+const unsigned long status_validity_mask1 = 0x2AAAAAA;
+const unsigned long input_validity_mask1 = 0x40;
+const unsigned long input_validity_mask2 = 0x2A000;
 // for printing
 unsigned long last_print_ts = 0;
 const long print_interval = 10000000;
@@ -78,28 +79,25 @@ void int_clock() {
   // exit
   if (bit_pos >= 64) {
     // validate each word based on the expected mask pattern
-    if ((data_word1 & validity_mask1) != 0) {
+    // either a valid status pattern (first word) or a valid input pattern (both words)
+    if (((data_word1 & status_validity_mask1) == 0) || ((data_word1 & input_validity_mask1) == 0 && (data_word2 & input_validity_mask2) == 0)) {
+      detachInterrupt(0);
+      if (data_word1 != prev_data_word1 || data_word2 != prev_data_word2) {
+        changed = true;
+      } else {
+        changed = false;
+      }
+      //(re)set
+      prev_data_word1 = data_word1;
+      prev_data_word2 = data_word2;
       bit_pos = 0;
       in_word = false;
-      return;
-    }
-    if ((data_word2 & validity_mask2) != 0) {
-      bit_pos = 0;
-      in_word = false;
-      return;
-    }
-    detachInterrupt(0);
-    if (data_word1 != prev_data_word1 || data_word2 != prev_data_word2) {
-      changed = true;
+      word_ready = true;
     } else {
-      changed = false;
+      // try again, sorry
+      bit_pos = 0;
+      in_word = false;
     }
-    //(re)set
-    prev_data_word1 = data_word1;
-    prev_data_word2 = data_word2;
-    bit_pos = 0;
-    in_word = false;
-    word_ready = true;
   }
 }
 

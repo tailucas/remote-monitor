@@ -282,7 +282,7 @@ class AlarmDecoder(Thread):
             to_string = str(self)
             if len(to_string) > 0:
                 log.info('House alarm: {}'.format(to_string))
-        elif (new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0):
+        elif new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0:
             user_input_string = 'House alarm: User input {}'
             if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
                 log.debug(user_input_string.format('0'))
