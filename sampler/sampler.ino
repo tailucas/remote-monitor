@@ -51,6 +51,10 @@ void int_clock() {
   do {
     sample_value += digitalRead(dataPin);
     values_sampled++;
+    if (bit_pos+1 >= 64) {
+      // no more changes now
+      detachInterrupt(0);
+    }
   } while (((micros() - last_clock_ts) < (clock_duration / 2)) && ((values_sampled & 1) != 0));
   // threshold the sampled value
   if (sample_value < (values_sampled / 2)) {
@@ -78,8 +82,6 @@ void int_clock() {
   bit_pos++;
   // exit
   if (bit_pos >= 64) {
-    // no more changes now
-    detachInterrupt(0);
     // validate each word based on the expected mask pattern
     // either a valid status pattern (first word) or a valid input pattern (both words)
     if (((data_word1 & status_validity_mask1) == 0) || ((data_word1 & input_validity_mask1) == 0 && (data_word2 & input_validity_mask2) == 0)) {
