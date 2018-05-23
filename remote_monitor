@@ -680,7 +680,12 @@ if __name__ == "__main__":
             output_samples = dict()
             for i in list(input_to_adc.keys()):
                 adc_name, pin = input_to_adc[i]
-                sampled_value = adcs[adc_name].read_voltage(pin)
+                try:
+                    sampled_value = adcs[adc_name].read_voltage(pin)
+                except TimeoutError:
+                    log.warning('Timeout reading value from {} on pin {}.'.format(adc_name, pin), exc_info=1)
+                    sleep(1)
+                    continue
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
                 input_value = int(input_normal_values[i])
                 device_key = input_devices[i]['device_key']
