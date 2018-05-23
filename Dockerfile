@@ -4,9 +4,9 @@ ENV INITSYSTEM on
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 
-COPY ./pipstrap.py /tmp/
 # http://unix.stackexchange.com/questions/339132/reinstall-man-pages-fix-man
 RUN rm -f /etc/dpkg/dpkg.cfg.d/01_nodoc
+RUN rm -f /etc/dpkg/dpkg.cfg.d/docker
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
     arduino \
     ca-certificates \
