@@ -93,18 +93,9 @@ for iface in eth0 wlan0; do
     break
   fi
 done
-SUB_CACHE=/data/sub_src
-if [ -e "$SUB_CACHE" ]; then
-  export SUB_SRC="$(cat "$SUB_CACHE")"
-fi
-# get the latest sources and bail unless cached
-export SUB_SRC="$(/app/resin --get-devices | grep -v "$ETH0_IP" | paste -d, -s)" || [ -n "${SUB_SRC:-}" ]
-echo "$SUB_SRC" > "$SUB_CACHE"
 # application configuration (no tee for secrets)
 cat /app/config/app.conf | /app/config_interpol > "/app/${APP_NAME}.conf"
 unset ETH0_IP
-unset SUB_SRC
-
 
 # load I2C
 modprobe i2c-dev
@@ -114,21 +105,8 @@ adduser "${APP_USER}" i2c
 # so app can interact with the serial device
 adduser "${APP_USER}" dialout
 
-APP_ID_CACHE=/data/app_id
-if [ -e $APP_ID_CACHE ]; then
-  export APP_ID="$(cat "$APP_ID_CACHE")"
-else
-  APP_ID="$(/app/resin --get-app-id)"
-  echo "$APP_ID" > "$APP_ID_CACHE"
-fi
-
 # show what i2c buses are available, and grant file permissions
 for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
-  # reboot to work around issue discussed here:
-  # http://docs.resin.io/#/pages/hardware/i2c-and-spi.md
-  /usr/sbin/i2cdetect -y "$(cut -f2 -d '-' <<< $i)" || curl -X POST --header "Content-Type:application/json" \
-    --data "{\"appId\": \"$APP_ID\"}" \
-    "${RESIN_SUPERVISOR_ADDRESS}/v1/restart?apikey=${RESIN_SUPERVISOR_API_KEY}"
   chown "${APP_USER}" "/dev/${i}"
 done
 
