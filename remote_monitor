@@ -25,6 +25,7 @@ from serial.serialutil import SerialException
 from threading import Thread
 from time import sleep
 from zmq import ContextTerminated
+from zmq.error import ZMQError
 
 
 APP = os.path.basename(__file__)
@@ -360,8 +361,14 @@ class Uploader(Thread):
     def run(self):
         # Socket to talk to the outside world
         publisher = zmq_context.socket(zmq.PUB)
-        publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
-                                                  port=config.get('zmq', 'pubsub_port')))
+        try:
+            publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
+                                                      port=config.get('zmq', 'pubsub_port')))
+        except ZMQError:
+            log.exception(self.__class__.__name__)
+            sentry.captureException()
+            raise
+
         while True:
             try:
                 publisher.send(Uploader.make_payload(
@@ -400,8 +407,14 @@ class DeviceActivator(Thread):
         # outputs
         self.relay_control.connect(URL_WORKER_RELAY_CTRL)
         # Socket to talk to the outside world
-        self.listener.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
-                                                      port=config.get('zmq', 'pushpull_port')))
+        try:
+            self.listener.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
+                                                          port=config.get('zmq', 'pushpull_port')))
+        except ZMQError:
+            log.exception(self.__class__.__name__)
+            sentry.captureException()
+            raise
+
         while True:
             try:
                 event = umsgpack.unpackb(self.listener.recv())
