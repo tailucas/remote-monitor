@@ -5,6 +5,5 @@ python-dateutil
 pytz
 pyzmq
 raven
-resin-sdk
 tzupdate
 u-msgpack-python
