@@ -113,22 +113,6 @@ for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
   chown "${APP_USER}" "/dev/${i}"
 done
 
-# sampler programming
-diff /opt/app/sampler/sampler.ino /data/sampler.ino || PROGRAMMER=1
-if [ "${PROGRAMMER:-}" == "1" ]; then
-  pushd /opt/app/sampler
-  export ARDUINODIR=/usr/share/arduino
-  export BOARD=uno
-  export SERIALDEV=/dev/ttyACM0
-  make upload
-  unset ARDUINODIR
-  unset BOARD
-  unset SERIALDEV
-  unset PROGRAMMER
-  cp sampler.ino /data/
-  popd
-fi
-
 # Load app environment, overriding HOME and USER
 # https://www.freedesktop.org/software/systemd/man/systemd.exec.html
 cat /etc/docker.env | egrep -v "^HOME|^USER" > /opt/app/environment.env

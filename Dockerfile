@@ -7,7 +7,6 @@ LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 # http://unix.stackexchange.com/questions/339132/reinstall-man-pages-fix-man
 RUN rm -f /etc/dpkg/dpkg.cfg.d/01_nodoc /etc/dpkg/dpkg.cfg.d/docker
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
-    arduino \
     ca-certificates \
     cpp \
     cron \
@@ -24,7 +23,6 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     libssl-dev \
     libzmq3-dev \
     lsof \
-    make \
     man-db \
     manpages \
     net-tools \
@@ -52,14 +50,6 @@ COPY . /opt/app
 
 # setup
 RUN /opt/app/app_setup.sh
-
-# build the Arduino image
-WORKDIR /opt/app/sampler
-RUN ARDUINODIR=/usr/share/arduino \
-    BOARD=uno \
-    SERIALDEV=/dev/ttyACM0 \
-    make
-WORKDIR /
 
 # Resin systemd
 COPY ./config/systemd.launch.service /etc/systemd/system/launch.service.d/app_override.conf
