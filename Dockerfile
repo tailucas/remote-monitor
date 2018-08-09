@@ -39,6 +39,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     rsyslog \
     ssl-cert \
     strace \
+    tree \
     vim \
     wavemon \
     wget
