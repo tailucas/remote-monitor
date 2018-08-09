@@ -45,15 +45,16 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     wavemon \
     wget
 
-RUN pip3 install wheel
-COPY ./config/requirements.txt /tmp/
-RUN pip3 install -r /tmp/requirements.txt
-RUN pip3 install git+https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git
+# python3 default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
 
-COPY . /app
+COPY . /opt/app
+
+# setup
+RUN /opt/app/app_setup.sh
 
 # build the Arduino image
-WORKDIR /app/sampler
+WORKDIR /opt/app/sampler
 RUN ARDUINODIR=/usr/share/arduino \
     BOARD=uno \
     SERIALDEV=/dev/ttyACM0 \
@@ -65,4 +66,4 @@ COPY ./config/systemd.launch.service /etc/systemd/system/launch.service.d/app_ov
 
 # ssh, zmq
 EXPOSE 22 5556 5558
-CMD ["/app/entrypoint.sh"]
+CMD ["/opt/app/entrypoint.sh"]
