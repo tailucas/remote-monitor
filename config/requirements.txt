@@ -1,6 +1,5 @@
 RPi.GPIO
 argparse
-pyserial
 python-dateutil
 pytz
 pyzmq

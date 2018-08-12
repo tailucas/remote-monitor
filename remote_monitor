@@ -6,7 +6,6 @@ import logging
 import logging.handlers
 import os
 import pytz
-import serial
 import signal
 import sys
 import time
@@ -21,7 +20,6 @@ from configparser import ConfigParser
 from datetime import datetime
 from random import randint
 from raven import Client as Sentry
-from serial.serialutil import SerialException
 from threading import Thread
 from time import sleep
 from zmq import ContextTerminated
@@ -89,263 +87,6 @@ def make_timestamp(timestamp=None, make_string=False):
         return timestamp.strftime(DATE_FORMAT)
     # not naive datetime
     return timestamp.replace(tzinfo=pytz.utc)
-
-
-class AlarmDecoder(Thread):
-
-    ZONE_DEBOUNCE_SECONDS = 2
-
-    # Baseline:           0000000010100010001010101000001000000001010101010101010101010100
-    # Ready:              0000000010100010001010101000001000000001010101010101010101010000
-    # AC/LB + Ready:      0000000010100010001010101000001000000001010101010100010101010000
-    # AC/LB + 1:          0000000010100010001010101000001000000000010101010100010101010100
-    # AC/LB + Arm + Stay: 0000000010100010001010101000001000000001010101010100010000010100
-    # AC/LB + 1:          0000000010100010001010101000001000000000010101010100010101010100
-    # AC/LB + 2:          0000000010100010001010101000001000000001000101010100010101010100
-    # 2:                  0000000010100010001010101000001000000001000101010101010101010100
-    # AC/LB + 3:          0000000010100010001010101000001000000001010001010100010101010100
-    # AC/LB + 4:          0000000010100010001010101000001000000001010100010100010101010100
-    # AC/LB + 5:          0000000010100010001010101000001000000001010101000100010101010100
-    # AC/LB + 6:          0000000010100010001010101000001000000001010101010000010101010100
-
-    # 1111111111111111111111111111111111111110000000000000000000000000
-    INPUT_MASK = 0xFFFFFFFFFE000000
-    # 0000000000000000000000000000000000000001111111111111111111111111
-    STATUS_MASK = 0x1FFFFFF
-    # 0000000010100010001010101000001000000001010101010101010101010100
-    BASELINE = 0xA22A8201555554
-    # 0000000000000000000000000000000000000010101010101010101010101010
-    STATUS_VALIDITY_MASK = 0x2AAAAAA
-    # 1010101010101010101010101010101000000000000000000000000000000000
-    INPUT_VALIDITY_MASK = 0xAAAAAAAA00000000
-    # 0000000000000000000000000100000000000000000000101010000000000000
-    USER_INPUT_1 = 0x4000000000
-    # 0000000000000000000000000001000000000000000000000000100000000010
-    USER_INPUT_2 = 0x1000000000
-    # 0000000000000001000000000000000000000000000000000000000000000000
-    USER_INPUT_3 = 0x1000000000000
-    # 0000000000000000000001000000000000000000000000000000000010000000
-    USER_INPUT_4 = 0x40000000000
-    # 0000000000000000010000000000000000000000000000000000000000000000
-    USER_INPUT_5 = 0x400000000000
-    # 0000000000000000000000000000000100000000000000000000000000000000
-    USER_INPUT_6 = 0x100000000
-    # 0000000000000000000000010000000000000000000010000000000000000000
-    USER_INPUT_7 = 0x10000000000
-    # 0000000000000100000000000000000000000000000000000000000000000000
-    USER_INPUT_8 = 0x4000000000000
-    # 0000000000000000000100000000000000000000000000000000000000000000
-    USER_INPUT_9 = 0x100000000000
-    # 0000000000000000000000000000000010000000000000000000000000000000
-    USER_INPUT_0 = 0x80000000
-    # 0000000000010000000000000000000000000000001000000000000000000000
-    USER_INPUT_AST = 0x10000000000000
-    # 0000000001000000000000000000000000000000100000000000000000000000
-    USER_INPUT_HASH = 0x40000000000000
-    # 0000000000000000000000000000010000000000000000000000000000000000
-    USER_INPUT_STAY = 0x400000000
-    # 0000000000000000000000000000000000100000000000000000000000000000
-    USER_INPUT_INSTANT = 0x20000000
-    # 0100000000000000000000000000000000000000000000000000000000000000
-    USER_INPUT_BYPASS = 0x4000000000000000
-    # 0001010100000000000000000000000000000010000000000000000000000000
-    USER_INPUT_CODE = 0x1500000000000000
-    # 0000000000000000000100000000000000000000000000000000000000000000
-    USER_INPUT_FIRE1 = 0x100000000000
-    # 0000000000000000000000010000000000000000000010000000000000100000
-    USER_INPUT_FIRE2 = 0x10000000000
-    # 0000000000000001000000000000000000000000000000000000001000000000
-    USER_INPUT_MED1 = 0x1000000000000
-    # 0000000000000000000000000100000000000000000000101010000000001000
-    USER_INPUT_MED2 = 0x4000000000
-    # 0000000001000000000000000000000000000000100000000000000000000000
-    USER_INPUT_POL1 = 0x40000000000000
-    # 0000000000010000000000000000000000000000001000000000000000000000
-    USER_INPUT_POL2 = 0x10000000000000
-
-    # 0000000000000000000000000000000000000001000000000000000000000000
-    ZONE_1 = 0x1000000
-    # 0000000000000000000000000000000000000000010000000000000000000000
-    ZONE_2 = 0x400000
-    # 0000000000000000000000000000000000000000000100000000000000000000
-    ZONE_3 = 0x100000
-    # 0000000000000000000000000000000000000000000001000000000000000000
-    ZONE_4 = 0x40000
-    # 0000000000000000000000000000000000000000000000010000000000000000
-    ZONE_5 = 0x10000
-    # 0000000000000000000000000000000000000000000000000100000000000000
-    ZONE_6 = 0x4000
-    # 0000000000000000000000000000000000000000000000000001000000000000
-    AC_LB = 0x1000
-    # 0000000000000000000000000000000000000000000000000000010000000000
-    #INSTANT = 0x400??
-    # 0000000000000000000000000000000000000000000000000000000100000000
-    ARM = 0x100
-    # 0000000000000000000000000000000000000000000000000000000001000000
-    STAY = 0x40
-    # 0000000000000000000000000000000000000000000000000000000000010000
-    #INSTANT = 0x10??
-    # 0000000000000000000000000000000000000000000000000000000000000100
-    READY = 0x4
-    # 0000000000000000000000000000000000000000000000000000000000000001
-    BUZZER = 0x1
-
-    def __init__(self):
-        super(AlarmDecoder, self).__init__(name=self.__class__.__name__)
-        self.daemon = True
-        self._alarm_state = 0
-        # serial
-        self._com1 = serial.Serial(
-            port=config.get('serial', 'port'),
-            baudrate=config.getint('serial', 'baudrate'),
-            timeout=1)
-        # state init
-        self._zone_states = dict()
-        self._zone_states[AlarmDecoder.ARM] = \
-        self._zone_states[AlarmDecoder.STAY] = \
-        self._zone_states[AlarmDecoder.AC_LB] = \
-        self._zone_states[AlarmDecoder.READY] = \
-        self._zone_states[AlarmDecoder.ZONE_1] = \
-        self._zone_states[AlarmDecoder.ZONE_2] = \
-        self._zone_states[AlarmDecoder.ZONE_3] = \
-        self._zone_states[AlarmDecoder.ZONE_4] = \
-        self._zone_states[AlarmDecoder.ZONE_5] = \
-        self._zone_states[AlarmDecoder.ZONE_6] = 0
-
-    def run(self):
-        while True:
-            # serial data for the alarm device type
-            try:
-                alarm_state_data = self._com1.readline()
-            except SerialException:
-                if self._com1.closed:
-                    log.error('{} is closed, cannot read serial data.'.format(config.get('serial', 'port')))
-                    break
-            if alarm_state_data is None:
-                continue
-            alarm_state_data = alarm_state_data.decode()
-            if len(alarm_state_data) > 0:
-                self.set_state(alarm_state_data)
-            sleep(SAMPLE_INTERVAL_SECONDS)
-            # throw away the intermediate data if the external sample rate exceeds our ability to consume it
-            self._com1.flushInput()
-
-    def stop(self):
-        if not self._com1.closed:
-            self._com1.close()
-
-    def set_state(self, state_string):
-        log.debug('{} setting alarm state to [{}]'.format(self.__class__.__name__, state_string))
-        if state_string is None:
-            return
-        # trim
-        state_string = state_string.rstrip()
-        if len(state_string) == 0 or ':' not in state_string or ',' not in state_string:
-            log.debug('Ignoring invalid alarm decoder word: [{}]'.format(state_string))
-            return
-        len_words = state_string.split(':')
-        expect_len = int(len_words[0])
-        word_string = len_words[1]
-        if len(word_string) != expect_len:
-            log.debug('Ignoring invalid alarm decoder word length, '
-                      'expected {} but got {}: [{}]'.format(expect_len, len(word_string), state_string))
-            return
-        words = word_string.split(',')
-        try:
-            upper_word = int(words[0], base=16)
-            lower_word = int(words[1], base=16)
-        except ValueError:
-            log.debug('Ignoring invalid alarm decoder word: [{}]'.format(words))
-            return
-        new_state_with_check_bits = (upper_word << 31) | lower_word
-        new_state = AlarmDecoder.BASELINE ^ new_state_with_check_bits
-        # word containing valid state change
-        if new_state & AlarmDecoder.STATUS_VALIDITY_MASK == 0:
-            if new_state != self._alarm_state:
-                self._alarm_state = new_state
-                # set the individual zone states
-                now = time.time()
-                if new_state & AlarmDecoder.ARM == AlarmDecoder.ARM:
-                    self._zone_states[AlarmDecoder.ARM] = now
-                if new_state & AlarmDecoder.STAY == AlarmDecoder.STAY:
-                    self._zone_states[AlarmDecoder.STAY] = now
-                if new_state & AlarmDecoder.AC_LB == AlarmDecoder.AC_LB:
-                    self._zone_states[AlarmDecoder.AC_LB] = now
-                if new_state & AlarmDecoder.READY == AlarmDecoder.READY:
-                    self._zone_states[AlarmDecoder.READY] = now
-                if new_state & AlarmDecoder.ZONE_1 == AlarmDecoder.ZONE_1:
-                    self._zone_states[AlarmDecoder.ZONE_1] = now
-                if new_state & AlarmDecoder.ZONE_2 == AlarmDecoder.ZONE_2:
-                    self._zone_states[AlarmDecoder.ZONE_2] = now
-                if new_state & AlarmDecoder.ZONE_3 == AlarmDecoder.ZONE_3:
-                    self._zone_states[AlarmDecoder.ZONE_3] = now
-                if new_state & AlarmDecoder.ZONE_4 == AlarmDecoder.ZONE_4:
-                    self._zone_states[AlarmDecoder.ZONE_4] = now
-                if new_state & AlarmDecoder.ZONE_5 == AlarmDecoder.ZONE_5:
-                    self._zone_states[AlarmDecoder.ZONE_5] = now
-                if new_state & AlarmDecoder.ZONE_6 == AlarmDecoder.ZONE_6:
-                    self._zone_states[AlarmDecoder.ZONE_6] = now
-                # debugging
-                bin_string = '{0:b}'.format(new_state).zfill(64)
-                log.debug('House alarm state has changed to: {}'.format(bin_string))
-                to_string = str(self)
-                if len(to_string) > 0:
-                    log.info('House alarm: {}'.format(to_string))
-        elif new_state & AlarmDecoder.INPUT_VALIDITY_MASK == 0:
-            user_input_string = 'House alarm: User input {}'
-            if new_state & AlarmDecoder.USER_INPUT_0 == AlarmDecoder.USER_INPUT_0:
-                log.debug(user_input_string.format('0'))
-            if new_state & AlarmDecoder.USER_INPUT_1 == AlarmDecoder.USER_INPUT_1:
-                log.debug(user_input_string.format('1'))
-            if new_state & AlarmDecoder.USER_INPUT_2 == AlarmDecoder.USER_INPUT_2:
-                log.debug(user_input_string.format('2'))
-            if new_state & AlarmDecoder.USER_INPUT_3 == AlarmDecoder.USER_INPUT_3:
-                log.debug(user_input_string.format('3'))
-            if new_state & AlarmDecoder.USER_INPUT_4 == AlarmDecoder.USER_INPUT_4:
-                log.debug(user_input_string.format('4'))
-            if new_state & AlarmDecoder.USER_INPUT_5 == AlarmDecoder.USER_INPUT_5:
-                log.debug(user_input_string.format('5'))
-            if new_state & AlarmDecoder.USER_INPUT_6 == AlarmDecoder.USER_INPUT_6:
-                log.debug(user_input_string.format('6'))
-            if new_state & AlarmDecoder.USER_INPUT_7 == AlarmDecoder.USER_INPUT_7:
-                log.debug(user_input_string.format('7'))
-            if new_state & AlarmDecoder.USER_INPUT_8 == AlarmDecoder.USER_INPUT_8:
-                log.debug(user_input_string.format('8'))
-            if new_state & AlarmDecoder.USER_INPUT_9 == AlarmDecoder.USER_INPUT_9:
-                log.debug(user_input_string.format('9'))
-            if new_state & AlarmDecoder.USER_INPUT_AST == AlarmDecoder.USER_INPUT_AST:
-                log.debug(user_input_string.format('*'))
-            if new_state & AlarmDecoder.USER_INPUT_HASH == AlarmDecoder.USER_INPUT_HASH:
-                log.debug(user_input_string.format('#'))
-            if new_state & AlarmDecoder.USER_INPUT_STAY == AlarmDecoder.USER_INPUT_STAY:
-                log.debug(user_input_string.format('STAY'))
-            if new_state & AlarmDecoder.USER_INPUT_BYPASS == AlarmDecoder.USER_INPUT_BYPASS:
-                log.debug(user_input_string.format('BYPASS'))
-            if new_state & AlarmDecoder.USER_INPUT_INSTANT == AlarmDecoder.USER_INPUT_INSTANT:
-                log.debug(user_input_string.format('INSTANT'))
-            if new_state & AlarmDecoder.USER_INPUT_CODE == AlarmDecoder.USER_INPUT_CODE:
-                log.debug(user_input_string.format('CODE'))
-        else:
-            bin_string = '{0:b}'.format(new_state).zfill(64)
-            log.warning('Ignoring invalid alarm status word: {} derived from {} ({})'.format(bin_string, new_state_with_check_bits, word_string))
-            return
-
-    def __str__(self):
-        zone_summary = list()
-        now = time.time()
-        if now - self._zone_states[AlarmDecoder.ZONE_1] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z1'))
-        if now - self._zone_states[AlarmDecoder.ZONE_2] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z2'))
-        if now - self._zone_states[AlarmDecoder.ZONE_3] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z3'))
-        if now - self._zone_states[AlarmDecoder.ZONE_4] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z4'))
-        if now - self._zone_states[AlarmDecoder.ZONE_5] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z5'))
-        if now - self._zone_states[AlarmDecoder.ZONE_6] <= AlarmDecoder.ZONE_DEBOUNCE_SECONDS:
-            zone_summary.append(config.get('house_alarm_decoder', 'Z6'))
-        return ', '.join(zone_summary)
 
 
 class Uploader(Thread):
@@ -671,11 +412,6 @@ if __name__ == "__main__":
     device_activator = DeviceActivator()
     device_activator.start()
 
-    # alarm decoder
-    alarm_decoder = AlarmDecoder()
-    #TODO: fixme
-    #alarm_decoder.start()
-
     samples_processed = 0
 
     input_normal_values = dict(config.items('input_normal_values'))
@@ -732,9 +468,6 @@ if __name__ == "__main__":
                     if abs(normalized_value - tamper_value) <= SAMPLE_DEVIATION_TOLERANCE:
                         event_detail = tamper_label
                         device_event_distinction = '{} {}'.format(device_key, tamper_label)
-                # decorate the alarm input type if it is not in a fault state
-                if device_type.lower() == 'alarm':
-                    event_detail = str(alarm_decoder)
                 # now include the event detail
                 if event_detail:
                     input_device['event_detail'] = event_detail
@@ -770,7 +503,6 @@ if __name__ == "__main__":
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated):
-        alarm_decoder.stop()
         uploader_socket.close()
         zmq_context.term()
     finally:
