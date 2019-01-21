@@ -34,6 +34,14 @@ EOF
   chmod 600 /root/.ssh/config
 fi
 
+# Create /etc/docker.env
+if [ ! -e /etc/docker.env ]; then
+  # https://github.com/balena-io-library/base-images/blob/b4fc5c21dd1e28c21e5661f65809c90ed7605fe6/examples/INITSYSTEM/systemd/systemd/entry.sh
+  for var in $(compgen -e); do
+    printf '%q=%q\n' "$var" "${!var}"
+  done > /etc/docker.env
+fi
+
 set -x
 
 
@@ -123,8 +131,8 @@ for systemdsvc in app; do
   if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
     cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
-    systemctl daemon-reload
-    systemctl enable "${systemdsvc}"
-    systemctl start "${systemdsvc}"&
+    /bin/systemctl daemon-reload
+    /bin/systemctl enable "${systemdsvc}"
+    /bin/systemctl start "${systemdsvc}"&
   fi
 done
