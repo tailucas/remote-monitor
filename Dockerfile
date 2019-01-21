@@ -1,5 +1,6 @@
 FROM balenalib/raspberry-pi-debian:stretch-run
 ENV INITSYSTEM on
+ENV container docker
 
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
@@ -55,8 +56,21 @@ COPY . /opt/app
 # setup
 RUN /opt/app/app_setup.sh
 
-# Resin systemd
-COPY ./config/systemd.launch.service /etc/systemd/system/launch.service.d/app_override.conf
+# systemd masks for containers
+# https://github.com/balena-io-library/base-images/blob/b4fc5c21dd1e28c21e5661f65809c90ed7605fe6/examples/INITSYSTEM/systemd/systemd/Dockerfile#L11-L22
+RUN systemctl mask \
+    dev-hugepages.mount \
+    sys-fs-fuse-connections.mount \
+    sys-kernel-config.mount \
+    display-manager.service \
+    getty@.service \
+    systemd-logind.service \
+    systemd-remount-fs.service \
+    getty.target \
+    graphical.target
+
+STOPSIGNAL 37
+VOLUME ["/sys/fs/cgroup"]
 
 # ssh, zmq
 EXPOSE 22 5556 5558

@@ -131,8 +131,9 @@ for systemdsvc in app; do
   if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
     cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
-    systemctl daemon-reload
     systemctl enable "${systemdsvc}"
-    systemctl start "${systemdsvc}"&
   fi
 done
+
+# replace this entrypoint with systemd init scope
+exec env DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket /lib/systemd/systemd quiet systemd.show_status=0
