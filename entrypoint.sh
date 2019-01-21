@@ -131,8 +131,8 @@ for systemdsvc in app; do
   if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
     cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
-    /bin/systemctl daemon-reload
-    /bin/systemctl enable "${systemdsvc}"
-    /bin/systemctl start "${systemdsvc}"&
+    systemctl daemon-reload
+    systemctl enable "${systemdsvc}"
+    systemctl start "${systemdsvc}"&
   fi
 done
