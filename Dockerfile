@@ -1,4 +1,4 @@
-FROM balenalib/armv6-debian:stretch-run
+FROM balenalib/raspberry-pi-debian:stretch-run
 ENV INITSYSTEM on
 
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
