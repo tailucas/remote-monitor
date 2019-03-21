@@ -509,6 +509,6 @@ if __name__ == "__main__":
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
-        log.info("Performing on-exit cleanup: {}".format(e.message))
+        log.info("Shutting down...")
         uploader_socket.close()
         zmq_context.term()
