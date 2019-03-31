@@ -295,7 +295,7 @@ def thread_nanny(threads_tracked, signal_handler):
                 threads_alive.add(thread_info.getName())
         if len(threads_tracked - threads_alive) > 0:
             message = 'A thread has died. Expected threads are [{}], missing is [{}].'.format(threads_tracked, threads_tracked - threads_alive)
-            log.error(message)
+            log.fatal(message)
             os._exit(1)
         time.sleep(10)
 
