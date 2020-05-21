@@ -54,6 +54,7 @@ groupadd -f -r "${APP_GROUP}"
 
 # non-root users
 id -u "${APP_USER}" || useradd -r -g "${APP_GROUP}" "${APP_USER}"
+chown "${APP_USER}:${APP_GROUP}" /opt/app/*
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
 
