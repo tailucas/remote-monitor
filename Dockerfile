@@ -57,7 +57,7 @@ COPY . /opt/app
 RUN /opt/app/app_setup.sh
 
 # systemd masks for containers
-# https://github.com/balena-io-library/base-images/blob/b4fc5c21dd1e28c21e5661f65809c90ed7605fe6/examples/INITSYSTEM/systemd/systemd/Dockerfile#L11-L22
+# https://github.com/balena-io-library/base-images/blob/master/examples/INITSYSTEM/systemd/systemd.v230/Dockerfile
 RUN systemctl mask \
     dev-hugepages.mount \
     sys-fs-fuse-connections.mount \
@@ -67,7 +67,8 @@ RUN systemctl mask \
     systemd-logind.service \
     systemd-remount-fs.service \
     getty.target \
-    graphical.target
+    graphical.target \
+    kmod-static-nodes.service
 
 STOPSIGNAL 37
 # ssh, zmq
