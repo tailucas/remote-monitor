@@ -5,31 +5,14 @@ ENV container docker
 MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
 LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
 
-# http://unix.stackexchange.com/questions/339132/reinstall-man-pages-fix-man
-RUN rm -f /etc/dpkg/dpkg.cfg.d/01_nodoc /etc/dpkg/dpkg.cfg.d/docker
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    cpp \
     cron \
-    curl \
     dbus \
-    g++ \
-    gcc \
-    git \
     htop \
     i2c-tools \
-    ifupdown \
-    less \
-    libffi-dev \
-    libssl-dev \
-    libzmq3-dev \
     lsof \
-    man-db \
-    manpages \
-    net-tools \
     openssh-server \
-    openssl \
-    psmisc \
+    python3-certifi \
     python3-dbus \
     python3 \
     python3-dev \
@@ -38,15 +21,14 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     python3-smbus \
     python3-venv \
     rsyslog \
-    ssl-cert \
     strace \
     systemd \
     tree \
     vim \
-    wavemon \
     wget \
     && pip3 install \
-        tzupdate
+        tzupdate \
+    && rm -rf /var/lib/apt/lists/*
 
 # python3 default
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
