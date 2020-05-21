@@ -1,4 +1,4 @@
-FROM balenalib/raspberry-pi-debian:stretch-run
+FROM balenalib/raspberry-pi-debian:buster-run
 ENV INITSYSTEM on
 ENV container docker
 
