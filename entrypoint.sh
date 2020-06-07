@@ -61,6 +61,16 @@ id -u "${APP_USER}" || useradd -r -g "${APP_GROUP}" "${APP_USER}"
 chown "${APP_USER}:${APP_GROUP}" /opt/app/*
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
+# home
+mkdir -p "/home/${APP_USER}/.aws/"
+chown -R "${APP_USER}:${APP_GROUP}" "/home/${APP_USER}/"
+# AWS configuration (no tee for secrets)
+cat /opt/app/config/aws-config | /opt/app/config_interpol > "/home/${APP_USER}/.aws/config"
+cat /opt/app/config/aws-credentials | /opt/app/config_interpol > "/home/${APP_USER}/.aws/credentials"
+# patch botoflow to work-around
+# AttributeError: 'Endpoint' object has no attribute 'timeout'
+PY_BASE_WORKER="$(find /opt/app/ -name base_worker.py)"
+patch -u "$PY_BASE_WORKER" -i /opt/app/config/base_worker.patch
 
 TZ_CACHE=/data/localtime
 # a valid symlink

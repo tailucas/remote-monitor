@@ -13,6 +13,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     i2c-tools \
     lsof \
     openssh-server \
+    patch \
     python3-certifi \
     python3-dbus \
     python3 \

@@ -26,6 +26,21 @@ from time import sleep
 from zmq import ContextTerminated
 from zmq.error import ZMQError
 
+import botocore
+import os.path
+from botoflow import activity, \
+    activities, \
+    execute, \
+    return_, \
+    workflow_starter, \
+    WorkflowDefinition, \
+    ThreadedWorkflowExecutor, \
+    ThreadedActivityExecutor
+from botoflow.workers.workflow_worker import WorkflowWorker
+from botoflow.workers.activity_worker import ActivityWorker
+from botoflow.constants import MINUTES
+from botoflow.exceptions import ActivityTaskFailedError, \
+    WorkflowFailedError
 
 APP = os.path.basename(__file__)
 if sys.stdout.isatty() and os.system('systemctl status app') == 0:
@@ -70,6 +85,15 @@ def make_timestamp(timestamp=None, make_string=False):
         return timestamp.strftime(DATE_FORMAT)
     # not naive datetime
     return timestamp.replace(tzinfo=pytz.utc)
+
+
+@activities(schedule_to_start_timeout=1*MINUTES,
+            start_to_close_timeout=1*MINUTES)
+class IOBoardActivity(object):
+
+    @activity('1.0')
+    def trigger_output(self, device_key, delay):
+        log.info("Trigger output on {} for {}".format(device_key, delay))
 
 
 class Uploader(Thread):
@@ -312,6 +336,15 @@ if __name__ == "__main__":
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
 
+    # connect to SWF
+    boto_session = botocore.session.Session(profile=config.get('botoflow', 'profile'))
+    swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
+                                            config.get('botoflow', 'region'),
+                                            config.get('botoflow', 'domain'),
+                                            'ioboard',
+                                            IOBoardActivity()))
+    swf_worker.start()
+
     # process configuration
     adcs = dict()
     for adc, address in config.items('adc_address'):
@@ -509,6 +542,12 @@ if __name__ == "__main__":
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
-        log.info("Shutting down...")
+        message = "Shutting down {}..."
+        log.info(message.format('SWF activity worker'))
+        swf_worker.stop()
+        swf_worker.join()
+        log.info(message.format('Application threads'))
         uploader_socket.close()
+        log.info(message.format('ZMQ context'))
         zmq_context.term()
+        log.info('Shutdown complete.')
