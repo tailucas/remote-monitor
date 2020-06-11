@@ -40,7 +40,7 @@ from botoflow.workers.workflow_worker import WorkflowWorker
 from botoflow.workers.activity_worker import ActivityWorker
 from botoflow.constants import MINUTES
 from botoflow.exceptions import ActivityTaskFailedError, \
-    WorkflowFailedError
+    WorkflowFailedError, WorkflowTimedOutError
 
 APP = os.path.basename(__file__)
 if sys.stdout.isatty() and os.system('systemctl status app') == 0:
