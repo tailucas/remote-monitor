@@ -23,6 +23,7 @@ from random import randint
 from raven import Client as Sentry
 from threading import Thread
 from time import sleep
+from traceback import StackSummary
 from zmq import ContextTerminated
 from zmq.error import ZMQError
 
@@ -70,6 +71,7 @@ config.read([os.path.join(DIR, '{}.conf'.format(APP))])
 
 zmq_context = zmq.Context()
 zmq_context.setsockopt(zmq.LINGER, 0)
+shutting_down = False
 
 sentry = Sentry()
 
@@ -338,8 +340,14 @@ def thread_nanny(threads_tracked, signal_handler):
         if len(threads_tracked - threads_alive) > 0:
             message = 'A thread has died. Expected threads are [{}], missing is [{}].'.format(threads_tracked, threads_tracked - threads_alive)
             log.fatal(message)
-            os._exit(1)
-        time.sleep(10)
+            shutting_down = True
+        else:
+            sleep(10)
+
+
+def swf_exception_handler(err: Exception, tb_list: StackSummary):
+    log.fatal('SWF processing exception: {} {}'.format(err, tb_list.format()))
+    shutting_down = True
 
 
 if __name__ == "__main__":
@@ -362,6 +370,7 @@ if __name__ == "__main__":
                                             config.get('botoflow', 'domain'),
                                             'ioboard',
                                             swf_activity))
+    swf_worker._worker.unhandled_exception_handler = swf_exception_handler
     swf_worker.start()
 
     # process configuration
@@ -559,6 +568,8 @@ if __name__ == "__main__":
                         'device_info': device_info
                     })
                     last_upload = time.time()
+            if shutting_down:
+                raise RuntimeWarning("Shutting down...")
             sleep(SAMPLE_INTERVAL_SECONDS)
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
         message = "Shutting down {}..."
