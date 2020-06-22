@@ -1,6 +1,7 @@
 RPi.GPIO
 argparse
 botoflow
+netifaces
 python-dateutil
 pytz
 pyzmq
