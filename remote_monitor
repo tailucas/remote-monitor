@@ -4,6 +4,7 @@ import dateutil.parser
 import json
 import logging
 import logging.handlers
+import netifaces
 import os
 import pytz
 import signal
@@ -343,6 +344,15 @@ def thread_nanny(threads_tracked, signal_handler):
             shutting_down = True
         else:
             sleep(10)
+
+
+@activities(schedule_to_start_timeout=1*MINUTES,
+            start_to_close_timeout=1*MINUTES)
+class DeviceInfoActivity(object):
+
+    @activity('1.0')
+    def get_ip_address(self):
+        return netifaces.gateways()['default'][netifaces.AF_INET][0]
 
 
 def swf_exception_handler(err: Exception, tb_list: StackSummary):
