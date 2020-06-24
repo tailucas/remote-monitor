@@ -374,12 +374,11 @@ if __name__ == "__main__":
 
     # connect to SWF
     boto_session = botocore.session.Session(profile=config.get('botoflow', 'profile'))
-    swf_activity = [IOBoardActivity(URL_WORKER_RELAY_CTRL), DeviceInfoActivity()]
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
                                             config.get('botoflow', 'region'),
                                             config.get('botoflow', 'domain'),
                                             'ioboard',
-                                            swf_activity))
+                                            IOBoardActivity(URL_WORKER_RELAY_CTRL), DeviceInfoActivity()))
     swf_worker._worker.unhandled_exception_handler = swf_exception_handler
     swf_worker.start()
 
