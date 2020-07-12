@@ -98,7 +98,7 @@ class IOBoardActivity(object):
         self._zmq_url = zmq_url
         self._zmq_worker = None
 
-    @activity('1.1')
+    @activity(version='1.1', start_to_close_timeout=5*SECONDS)
     def trigger_output(self, device_key, delay):
         try:
             # create ZMQ socket and use on the correct thread
@@ -347,11 +347,11 @@ def thread_nanny(threads_tracked, signal_handler):
             sleep(10)
 
 
-@activities(schedule_to_start_timeout=5*SECONDS,
-            start_to_close_timeout=5*SECONDS)
+@activities(schedule_to_start_timeout=1*MINUTES,
+            start_to_close_timeout=1*MINUTES)
 class DeviceInfoActivity(object):
 
-    @activity('1.1')
+    @activity(version='1.1', start_to_close_timeout=5*SECONDS)
     def get_ip_address(self):
         ipv4_address = None
         lan_iface = None
