@@ -40,7 +40,7 @@ from botoflow import activity, \
     ThreadedActivityExecutor
 from botoflow.workers.workflow_worker import WorkflowWorker
 from botoflow.workers.activity_worker import ActivityWorker
-from botoflow.constants import MINUTES
+from botoflow.constants import SECONDS, MINUTES
 from botoflow.exceptions import ActivityTaskFailedError, \
     WorkflowFailedError, WorkflowTimedOutError
 
@@ -347,11 +347,11 @@ def thread_nanny(threads_tracked, signal_handler):
             sleep(10)
 
 
-@activities(schedule_to_start_timeout=1*MINUTES,
-            start_to_close_timeout=1*MINUTES)
+@activities(schedule_to_start_timeout=5*SECONDS,
+            start_to_close_timeout=5*SECONDS)
 class DeviceInfoActivity(object):
 
-    @activity('1.0')
+    @activity('1.1')
     def get_ip_address(self):
         ipv4_address = None
         lan_iface = None
