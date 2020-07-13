@@ -528,9 +528,7 @@ if __name__ == "__main__":
     try:
         last_upload = 0
         device_history = dict()
-        while True:
-            if shutting_down:
-                raise RuntimeWarning("Shutting down...")
+        while not shutting_down:
             active_devices = list()
             output_samples = dict()
             for i in list(input_to_adc.keys()):
@@ -608,6 +606,7 @@ if __name__ == "__main__":
                     })
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
+        raise RuntimeWarning("Shutting down...")
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
         message = "Shutting down {}..."
         log.info(message.format('SWF activity worker'))
