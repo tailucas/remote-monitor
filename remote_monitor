@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import boto3
+import builtins
 import copy
 import dateutil.parser
 import json
@@ -7,6 +9,7 @@ import logging.handlers
 import netifaces
 import os
 import pytz
+import sentry_sdk
 import signal
 import sys
 import threading
@@ -21,7 +24,6 @@ from configparser import ConfigParser
 
 from datetime import datetime
 from random import randint
-from raven import Client as Sentry
 from threading import Thread
 from time import sleep
 from traceback import StackSummary
@@ -44,14 +46,25 @@ from botoflow.constants import SECONDS, MINUTES
 from botoflow.exceptions import ActivityTaskFailedError, \
     WorkflowFailedError, WorkflowTimedOutError
 
-APP = os.path.basename(__file__)
-if sys.stdout.isatty() and os.system('systemctl status app') == 0:
-    print("{} is already running. Use 'systemctl stop app' to stop first.".format(APP))
-    sys.exit(1)
 
-log = logging.getLogger(APP)
-# no console by default
-log.propagate = False
+builtins.APP_NAME = os.path.basename(__file__)
+builtins.SENTRY_EXTRAS = []
+import pylib
+
+from pylib.bluetooth import bluetooth_init, ping_bluetooth_devices
+from pylib.datetime import is_list, make_timestamp, parse_datetime
+from pylib.data import make_payload
+from pylib.aws.metrics import post_count_metric
+from pylib.aws.swf import SWFActivityWaiter, \
+    swf_exception_handler, \
+    IOBoardActivity, \
+    DeviceInfoActivity, \
+    DeviceWorkflow, \
+    IOBoardWorkflow
+from pylib.process import SignalHandler, exec_cmd
+from pylib.threads import thread_nanny
+from pylib.zmq import Uploader
+
 
 # FIXME: benchmark this to supply voltage using test pin or something else
 ADC_SAMPLE_MAX = 5.0
@@ -59,108 +72,10 @@ HEARTBEAT_INTERVAL_SECONDS = 5
 RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 SAMPLE_INTERVAL_SECONDS = 0.1
 SAMPLE_DEVIATION_TOLERANCE = 10
-DATE_FORMAT = '%Y-%m-%dT%H:%M:%S.%f%z'
-URL_WORKER_UPLOADER = 'inproc://uploader'
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
 
-
-DIR = os.path.abspath(os.path.dirname(__file__))
-config = ConfigParser()
-config.optionxform = str
-config.read([os.path.join(DIR, '{}.conf'.format(APP))])
-
-zmq_context = zmq.Context()
-zmq_context.setsockopt(zmq.LINGER, 0)
-shutting_down = False
-
-sentry = Sentry()
-
-
-def make_timestamp(timestamp=None, make_string=False):
-    if timestamp is None:
-        timestamp = datetime.utcnow()
-    elif isinstance(timestamp, float) or isinstance(timestamp, int):
-        timestamp = datetime.utcfromtimestamp(timestamp)
-    elif isinstance(timestamp, str):
-        timestamp = dateutil.parser.parse(timestamp)
-    if make_string:
-        return timestamp.strftime(DATE_FORMAT)
-    # not naive datetime
-    return timestamp.replace(tzinfo=pytz.utc)
-
-
-@activities(schedule_to_start_timeout=1*MINUTES,
-            start_to_close_timeout=1*MINUTES)
-class IOBoardActivity(object):
-
-    def __init__(self, zmq_url):
-        self._zmq_url = zmq_url
-        self._zmq_worker = None
-
-    @activity(version='1.1', start_to_close_timeout=5*SECONDS)
-    def trigger_output(self, device_key, delay):
-        try:
-            # create ZMQ socket and use on the correct thread
-            if (self._zmq_worker is None):
-                self._zmq_worker = zmq_context.socket(zmq.PUSH)
-                self._zmq_worker.connect(self._zmq_url)
-            self._zmq_worker.send_pyobj((device_key, delay))
-        except Exception:
-            log.exception(self.__class__.__name__)
-            sentry.captureException()
-            raise
-
-    def stop(self):
-        # create ZMQ socket and use on the correct thread
-        if (self._zmq_worker is not None):
-            self._zmq_worker.close()
-
-
-class Uploader(Thread):
-
-    def __init__(self):
-        super(Uploader, self).__init__(name=self.__class__.__name__)
-        self.daemon = True
-        # inproc socket to accept messages to publish
-        # to the outside world
-        self.inproc_pull = zmq_context.socket(zmq.PULL)
-        self.inproc_pull.bind(URL_WORKER_UPLOADER)
-
-    def run(self):
-        # Socket to talk to the outside world
-        publisher = zmq_context.socket(zmq.PUB)
-        try:
-            publisher.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
-                                                      port=config.get('zmq', 'pubsub_port')))
-        except ZMQError:
-            log.exception(self.__class__.__name__)
-            raise
-
-        while True:
-            try:
-                publisher.send(Uploader.make_payload(
-                    timestamp=None,
-                    data=self.inproc_pull.recv_pyobj()))
-            except ContextTerminated:
-                self.inproc_pull.close()
-                publisher.close()
-                break
-            except Exception:
-                log.exception(self.__class__.__name__)
-                sentry.captureException()
-                sleep(1)
-                continue
-
-    @staticmethod
-    def make_payload(timestamp=None, data=None):
-        payload = {'timestamp': make_timestamp(timestamp, True)}
-        if data is not None and len(data) > 0:
-            payload['data'] = data
-        log.debug(json.dumps(payload))
-        return umsgpack.packb(payload)
-
-
+# FIXME: remove
 class DeviceActivator(Thread):
 
     def __init__(self):
@@ -176,8 +91,8 @@ class DeviceActivator(Thread):
         self.relay_control.connect(URL_WORKER_RELAY_CTRL)
         # Socket to talk to the outside world
         try:
-            self.listener.bind('tcp://{ip}:{port}'.format(ip=config.get('app', 'eth0_ip'),
-                                                          port=config.get('zmq', 'pushpull_port')))
+            self.listener.bind('tcp://{ip}:{port}'.format(ip=APP_CONFIG.get('app', 'eth0_ip'),
+                                                          port=APP_CONFIG.get('zmq', 'pushpull_port')))
         except ZMQError:
             log.exception(self.__class__.__name__)
             raise
@@ -308,111 +223,20 @@ class RelayControl(Thread):
         self._output_to_relay[device_key] = relay
 
 
-class SignalHandler:
-
-    def __init__(self):
-        self.last_signal = 0
-        signal.signal(signal.SIGTERM, self.terminate)
-        signal.signal(signal.SIGHUP, self.hup)
-
-    def hup(self, signum, frame):
-        log.warning('Signal {} received.'.format(signum))
-        self.last_signal = signum
-        if log.getEffectiveLevel() == logging.INFO:
-            log.setLevel(logging.DEBUG)
-        elif log.getEffectiveLevel() == logging.DEBUG:
-            log.setLevel(logging.INFO)
-
-    def terminate(self, signum, frame):
-        log.warning('Signal {} received.'.format(signum))
-        self.last_signal = signum
-        raise RuntimeWarning()
-
-
-def thread_nanny(threads_tracked, signal_handler):
-    global shutting_down
-    while True:
-        # kill the nanny now
-        if signal_handler.last_signal == signal.SIGTERM:
-            break
-        threads_alive = set()
-        for thread_info in threading.enumerate():
-            if thread_info.isAlive():
-                threads_alive.add(thread_info.getName())
-        if len(threads_tracked - threads_alive) > 0:
-            message = 'A thread has died. Expected threads are [{}], missing is [{}].'.format(threads_tracked, threads_tracked - threads_alive)
-            log.fatal(message)
-            shutting_down = True
-        else:
-            sleep(10)
-
-
-@activities(schedule_to_start_timeout=1*MINUTES,
-            start_to_close_timeout=1*MINUTES)
-class DeviceInfoActivity(object):
-
-    @activity(version='1.1', start_to_close_timeout=5*SECONDS)
-    def get_ip_address(self):
-        ipv4_address = None
-        lan_iface = None
-        default_gateway_ipv4_iface = None
-        # use the gateway data to find the LAN device from which IP is determined
-        default_gateway_ipv4 = netifaces.gateways()['default'][netifaces.AF_INET]
-        if default_gateway_ipv4 is not None and len(default_gateway_ipv4) > 0:
-            default_gateway_ipv4_address = default_gateway_ipv4[0]
-            default_gateway_ipv4_iface = default_gateway_ipv4[1]
-            log.info('Gateway address is {} on {}'.format(default_gateway_ipv4_address, default_gateway_ipv4_iface))
-            lan_iface = default_gateway_ipv4_iface
-        else:
-            # go old-skool
-            ifaces = netifaces.interfaces()
-            # put wlan at the end
-            ifaces.sort()
-            for iface in ifaces:
-                if iface.lower().startswith(("et", "en", "wlan")):
-                    try:
-                        netifaces.ifaddresses(iface)[netifaces.AF_INET]
-                    except KeyError:
-                        next
-                    lan_iface = iface
-                    break
-        ipv4_address = netifaces.ifaddresses(lan_iface)[netifaces.AF_INET][0]['addr']
-        log.info('Using IPv4 address {} on {}'.format(ipv4_address, lan_iface))
-        return ipv4_address
-
-
-def swf_exception_handler(err: Exception, tb_list: StackSummary):
-    global shutting_down
-    log.fatal('SWF processing exception: {} {}'.format(err, tb_list.format()))
-    shutting_down = True
-
-
 if __name__ == "__main__":
-    # set up logging
-    log.setLevel(logging.INFO)
-    syslog_handler = logging.handlers.SysLogHandler(address='/dev/log')
-    formatter = logging.Formatter('%(name)s [%(levelname)s] %(message)s')
-    syslog_handler.setFormatter(formatter)
-    log.addHandler(syslog_handler)
-    if sys.stdout.isatty():
-        stream_handler = logging.StreamHandler(stream=sys.stdout)
-        stream_handler.setFormatter(formatter)
-        log.addHandler(stream_handler)
-
     # connect to SWF
-    boto_session = botocore.session.Session(profile=config.get('botoflow', 'profile'))
     swf_activity = IOBoardActivity(URL_WORKER_RELAY_CTRL)
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
-                                            config.get('botoflow', 'region'),
-                                            config.get('botoflow', 'domain'),
-                                            APP,
+                                            swf_region,
+                                            swf_domain,
+                                            APP_NAME,
                                             swf_activity, DeviceInfoActivity()))
     swf_worker._worker.unhandled_exception_handler = swf_exception_handler
     swf_worker.start()
 
     # process configuration
     adcs = dict()
-    for adc, address in config.items('adc_address'):
+    for adc, address in APP_CONFIG.items('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
         address = address.split(',')
         adcs[adc] = ADCPi(int(address[0], 16),
@@ -420,7 +244,7 @@ if __name__ == "__main__":
                           12)
 
     ios = dict()
-    for io, address in config.items('io_address'):
+    for io, address in APP_CONFIG.items('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
         io_port = IOPi(int(address, 16))
         # set port direction to output
@@ -432,12 +256,10 @@ if __name__ == "__main__":
         ios[io] = io_port
 
     relay_to_io = dict()
-    for relay, address in config.items('relay_address'):
+    for relay, address in APP_CONFIG.items('relay_address'):
         io, pin = tuple(address.split(':'))
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
-
-    threads_tracked = set()
 
     relay_workers = list()
     relay_to_worker = dict()
@@ -452,14 +274,14 @@ if __name__ == "__main__":
 
     relay_control = RelayControl(relay_mappings=relay_to_worker)
 
-    input_types = dict(config.items('input_type'))
+    input_types = dict(APP_CONFIG.items('input_type'))
     # name overrides location name
-    input_names = dict(config.items('input_name'))
-    input_locations = dict(config.items('input_location'))
+    input_names = dict(APP_CONFIG.items('input_name'))
+    input_locations = dict(APP_CONFIG.items('input_location'))
     # construct the device representation
     input_devices = dict()
-    output_types = dict(config.items('output_type'))
-    output_locations = dict(config.items('output_location'))
+    output_types = dict(APP_CONFIG.items('output_type'))
+    output_locations = dict(APP_CONFIG.items('output_location'))
     device_info = dict()
     device_info['inputs'] = list()
     for field, input_type in list(input_types.items()):
@@ -483,14 +305,14 @@ if __name__ == "__main__":
             'location': output_location,
             'device_key': device_key
         })
-        if config.has_option('output_relay', field):
-            relay = config.get('output_relay', field)
+        if APP_CONFIG.has_option('output_relay', field):
+            relay = APP_CONFIG.get('output_relay', field)
             log.info("'{}' will trigger '{}'".format(device_key, relay))
             relay_control.add_output(
                 device_key=device_key,
                 relay=relay)
 
-    input_addresses = dict(config.items('input_address'))
+    input_addresses = dict(APP_CONFIG.items('input_address'))
     input_to_adc = dict()
     for field in input_addresses:
         adc, pin = tuple(input_addresses[field].split(':'))
@@ -499,7 +321,11 @@ if __name__ == "__main__":
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
     # start up threads
-    uploader = Uploader()
+    uploader = Uploader(
+        zmq_context=zmq_context,
+        zmq_ipc_url=URL_WORKER_UPLOADER,
+        pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
+        pub_port=APP_CONFIG.get('zmq', 'pubsub_port'))
     uploader.start()
     threads_tracked.add(uploader.getName())
     uploader_socket = zmq_context.socket(zmq.PUSH)
@@ -509,23 +335,33 @@ if __name__ == "__main__":
     relay_control.start()
     threads_tracked.add(relay_control.getName())
 
+    # FIXME: remove local class
     device_activator = DeviceActivator()
+    #    zmq_context=zmq_context,
+    #    zmq_ipc_url=URL_WORKER_APP,
+    #    pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
+    #    pub_port=APP_CONFIG.get('zmq', 'pushpull_port'))
+
     device_activator.start()
     threads_tracked.add(device_activator.getName())
 
     samples_processed = 0
 
-    input_normal_values = dict(config.items('input_normal_values'))
-    tamper_label = config.get('app', 'tamper_label')
-    input_tamper_values = dict(config.items('input_tamper_values'))
+    input_normal_values = dict(APP_CONFIG.items('input_normal_values'))
+    tamper_label = APP_CONFIG.get('app', 'tamper_label')
+    input_tamper_values = dict(APP_CONFIG.items('input_tamper_values'))
 
-    # set up signal handlers
+    # must be main thread
     signal_handler = SignalHandler()
-    f = threading.Thread(name='nanny', target=thread_nanny, args=(threads_tracked, signal_handler,))
+    # start the nanny
+    f = threading.Thread(name='nanny', target=thread_nanny, args=(signal_handler,))
     f.setDaemon(True)
     f.start()
 
     try:
+        # startup completed
+        # back to INFO logging
+        log.setLevel(logging.INFO)
         last_upload = 0
         device_history = dict()
         while not shutting_down:

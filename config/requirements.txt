@@ -1,9 +1,11 @@
 RPi.GPIO
 argparse
+boto3
 botoflow
 netifaces
 python-dateutil
 pytz
 pyzmq
-raven
+sentry-sdk
+simplejson
 u-msgpack-python
