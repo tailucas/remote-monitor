@@ -55,6 +55,9 @@ import pylib
 from pylib.bluetooth import bluetooth_init, ping_bluetooth_devices
 from pylib.datetime import is_list, make_timestamp, parse_datetime
 from pylib.data import make_payload
+from pylib.aws import boto_session, \
+    swf_region, \
+    swf_domain
 from pylib.aws.metrics import post_count_metric
 from pylib.aws.swf import SWFActivityWaiter, \
     swf_exception_handler, \
