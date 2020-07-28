@@ -23,6 +23,7 @@ from IOPi import IOPi
 from configparser import ConfigParser
 
 from datetime import datetime
+from pathlib import Path
 from random import randint
 from threading import Thread
 from time import sleep
@@ -47,7 +48,7 @@ from botoflow.exceptions import ActivityTaskFailedError, \
     WorkflowFailedError, WorkflowTimedOutError
 
 
-builtins.APP_NAME = os.path.basename(__file__)
+builtins.APP_NAME = Path(__file__).stem
 builtins.SENTRY_EXTRAS = []
 import pylib
 
@@ -62,6 +63,7 @@ from pylib.aws.swf import SWFActivityWaiter, \
     DeviceWorkflow, \
     IOBoardWorkflow
 from pylib.process import SignalHandler, exec_cmd
+from pylib import threads
 from pylib.threads import thread_nanny
 from pylib.zmq import Uploader
 
@@ -268,7 +270,7 @@ if __name__ == "__main__":
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
         relay.start()
-        threads_tracked.add(relay.getName())
+        threads.threads_tracked.add(relay.getName())
         relay_workers.append(relay)
         relay_to_worker[relay_name] = relay.zmq_url
 
@@ -327,13 +329,13 @@ if __name__ == "__main__":
         pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
         pub_port=APP_CONFIG.get('zmq', 'pubsub_port'))
     uploader.start()
-    threads_tracked.add(uploader.getName())
+    threads.threads_tracked.add(uploader.getName())
     uploader_socket = zmq_context.socket(zmq.PUSH)
     uploader_socket.connect(URL_WORKER_UPLOADER)
 
     # start relay control
     relay_control.start()
-    threads_tracked.add(relay_control.getName())
+    threads.threads_tracked.add(relay_control.getName())
 
     # FIXME: remove local class
     device_activator = DeviceActivator()
@@ -343,7 +345,7 @@ if __name__ == "__main__":
     #    pub_port=APP_CONFIG.get('zmq', 'pushpull_port'))
 
     device_activator.start()
-    threads_tracked.add(device_activator.getName())
+    threads.threads_tracked.add(device_activator.getName())
 
     samples_processed = 0
 
@@ -364,7 +366,7 @@ if __name__ == "__main__":
         log.setLevel(logging.INFO)
         last_upload = 0
         device_history = dict()
-        while not shutting_down:
+        while not threads.shutting_down:
             active_devices = list()
             output_samples = dict()
             for i in list(input_to_adc.keys()):
@@ -444,6 +446,9 @@ if __name__ == "__main__":
             sleep(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
+        log.warning(str(e))
+        threads.shutting_down = True
+        threads.interruptable_sleep.set()
         message = "Shutting down {}..."
         log.info(message.format('SWF activity worker'))
         swf_worker.stop()
