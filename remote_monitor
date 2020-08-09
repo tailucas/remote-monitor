@@ -25,6 +25,7 @@ from configparser import ConfigParser
 from datetime import datetime
 from pathlib import Path
 from random import randint
+from sentry_sdk import capture_exception
 from threading import Thread
 from time import sleep
 from traceback import StackSummary
