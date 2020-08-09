@@ -126,7 +126,7 @@ class DeviceActivator(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
-                sentry.captureException()
+                capture_exception()
                 sleep(1)
                 continue
 
@@ -168,7 +168,7 @@ class Relay(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
-                sentry.captureException()
+                capture_exception()
                 sleep(1)
                 continue
 
@@ -215,7 +215,7 @@ class RelayControl(Thread):
                 break
             except Exception:
                 log.exception(self.__class__.__name__)
-                sentry.captureException()
+                capture_exception()
                 sleep(1)
                 continue
 
