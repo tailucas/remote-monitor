@@ -69,7 +69,7 @@ from pylib.aws.swf import SWFActivityWaiter, \
 from pylib.process import SignalHandler, exec_cmd
 from pylib import threads
 from pylib.threads import thread_nanny
-from pylib.zmq import Uploader
+from pylib.zmq import Publisher, URL_WORKER_PUBLISHER
 
 
 # FIXME: benchmark this to supply voltage using test pin or something else
@@ -327,15 +327,15 @@ if __name__ == "__main__":
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
     # start up threads
-    uploader = Uploader(
+    publisher = Publisher(
         zmq_context=zmq_context,
-        zmq_ipc_url=URL_WORKER_UPLOADER,
+        zmq_ipc_url=URL_WORKER_PUBLISHER,
         pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
         pub_port=APP_CONFIG.get('zmq', 'pubsub_port'))
-    uploader.start()
-    threads.threads_tracked.add(uploader.getName())
-    uploader_socket = zmq_context.socket(zmq.PUSH)
-    uploader_socket.connect(URL_WORKER_UPLOADER)
+    publisher.start()
+    threads.threads_tracked.add(publisher.getName())
+    publisher_socket = zmq_context.socket(zmq.PUSH)
+    publisher_socket.connect(URL_WORKER_PUBLISHER)
 
     # start relay control
     relay_control.start()
@@ -434,7 +434,7 @@ if __name__ == "__main__":
                 active_devices.append(input_device)
                 log.info("'{}' (detail: {}, sampled: {})".format(device_event_distinction, event_detail, normalized_value))
             if len(active_devices) > 0:
-                uploader_socket.send_pyobj({
+                publisher_socket.send_pyobj({
                     'samples': output_samples,
                     'active_devices': active_devices
                 })
@@ -442,7 +442,7 @@ if __name__ == "__main__":
             else:
                 inactivity = time.time() - last_upload
                 if inactivity > HEARTBEAT_INTERVAL_SECONDS:
-                    uploader_socket.send_pyobj({
+                    publisher_socket.send_pyobj({
                         'statistics': {'sample_count': samples_processed},
                         'device_info': device_info
                     })
@@ -460,8 +460,8 @@ if __name__ == "__main__":
         log.info(message.format('SWF activity channel'))
         # stop SWF activity to close ZMQ channel
         swf_activity.stop()
-        log.info(message.format('Application threads'))
-        uploader_socket.close()
+        log.info(message.format('ZMQ publisher'))
+        publisher_socket.close()
         log.info(message.format('ZMQ context'))
         zmq_context.term()
         log.info(message.format('SWF worker'))
