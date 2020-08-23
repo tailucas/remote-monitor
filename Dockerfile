@@ -2,8 +2,8 @@ FROM balenalib/raspberry-pi-debian:buster-run
 ENV INITSYSTEM on
 ENV container docker
 
-MAINTAINER db2inst1 <db2inst1@webafrica.org.za>
-LABEL Description="remote_monitor" Vendor="db2inst1" Version="1.0"
+MAINTAINER Tai Lucas <tglucas@gmail.com>
+LABEL Description="remote_monitor" Vendor="tglucas" Version="1.0"
 
 RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
