@@ -23,6 +23,7 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     python3-setuptools \
     python3-smbus \
     python3-venv \
+    python3-wheel \
     rsyslog \
     strace \
     systemd \
