@@ -209,6 +209,7 @@ class RelayControl(Thread):
                     self._sockets[relay].send_pyobj(relay_cmd)
                 else:
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
+                    post_count_metric('Errors')
             except ContextTerminated:
                 self.socket.close()
                 for socket in list(self._sockets.values()):
