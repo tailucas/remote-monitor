@@ -81,56 +81,6 @@ SAMPLE_DEVIATION_TOLERANCE = 10
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
 
-# FIXME: remove
-class DeviceActivator(Thread):
-
-    def __init__(self):
-        super(DeviceActivator, self).__init__(name=self.__class__.__name__)
-        self.daemon = True
-
-        self.listener = zmq_context.socket(zmq.PULL)
-        # what to do with device activations
-        self.relay_control = zmq_context.socket(zmq.PUSH)
-
-    def run(self):
-        # outputs
-        self.relay_control.connect(URL_WORKER_RELAY_CTRL)
-        # Socket to talk to the outside world
-        try:
-            self.listener.bind('tcp://{ip}:{port}'.format(ip=APP_CONFIG.get('app', 'eth0_ip'),
-                                                          port=APP_CONFIG.get('zmq', 'pushpull_port')))
-        except ZMQError:
-            log.exception(self.__class__.__name__)
-            raise
-
-        while True:
-            try:
-                event = umsgpack.unpackb(self.listener.recv())
-                log.debug(event)
-                if 'data' not in event:
-                    log.warning('Unknown event data: {}'.format(event))
-                    continue
-                event_data = event['data']
-                if 'trigger_output' in event_data:
-                    output_type = event_data['trigger_output']['type']
-                    if 'input_context' not in event_data:
-                        log.warning('{} requested without context, ignoring.'.format(output_type))
-                        continue
-                    delay = None
-                    if 'trigger_duration' in event_data:
-                        delay = event_data['trigger_duration']
-                    # send all output activations to the relay control, which will filter accordingly
-                    self.relay_control.send_pyobj((event_data['trigger_output']['device_key'], delay))
-            except ContextTerminated:
-                self.listener.close()
-                self.relay_control.close()
-                break
-            except Exception:
-                log.exception(self.__class__.__name__)
-                capture_exception()
-                sleep(1)
-                continue
-
 
 class Relay(Thread):
 
@@ -156,13 +106,13 @@ class Relay(Thread):
                     if relay_ctrl['state'] is True:
                         self._io.write_pin(self._pin, 1)
                         # sleep
-                        if 'delay' in relay_ctrl:
-                            delay = relay_ctrl['delay']
+                        if 'duration' in relay_ctrl:
+                            duration = relay_ctrl['duration']
                         else:
-                            delay = RELAY_DEFAULT_ACTIVE_TIME_SECONDS
-                        log.info("Activating {} for {} seconds.".format(self._name, delay))
+                            duration = RELAY_DEFAULT_ACTIVE_TIME_SECONDS
+                        log.info("Activating {} for {} seconds.".format(self._name, duration))
                         self._io.write_pin(self._pin, 1)
-                        sleep(float(delay))
+                        sleep(float(duration))
                     self._io.write_pin(self._pin, 0)
             except ContextTerminated:
                 self.socket.close()
@@ -193,7 +143,7 @@ class RelayControl(Thread):
     def run(self):
         while True:
             try:
-                device_key, delay = self.socket.recv_pyobj()
+                device_key, duration = self.socket.recv_pyobj()
                 log.debug("Relay event for '{}'".format(device_key))
                 if device_key not in self._output_to_relay:
                     log.debug("'{}' is not configured for relay control".format(device_key))
@@ -204,8 +154,8 @@ class RelayControl(Thread):
                     relay_cmd = {
                         'state': True
                     }
-                    if delay:
-                        relay_cmd['delay'] = delay
+                    if duration:
+                        relay_cmd['duration'] = duration
                     self._sockets[relay].send_pyobj(relay_cmd)
                 else:
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
@@ -342,16 +292,6 @@ if __name__ == "__main__":
     relay_control.start()
     threads.threads_tracked.add(relay_control.getName())
 
-    # FIXME: remove local class
-    device_activator = DeviceActivator()
-    #    zmq_context=zmq_context,
-    #    zmq_ipc_url=URL_WORKER_APP,
-    #    pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
-    #    pub_port=APP_CONFIG.get('zmq', 'pushpull_port'))
-
-    device_activator.start()
-    threads.threads_tracked.add(device_activator.getName())
-
     samples_processed = 0
 
     input_normal_values = dict(APP_CONFIG.items('input_normal_values'))
@@ -457,7 +397,6 @@ if __name__ == "__main__":
         message = "Shutting down {}..."
         log.info(message.format('SWF activity worker'))
         swf_worker.stop()
-        swf_worker.join()
         log.info(message.format('SWF activity channel'))
         # stop SWF activity to close ZMQ channel
         swf_activity.stop()
