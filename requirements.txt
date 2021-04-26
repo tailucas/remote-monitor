@@ -3,6 +3,7 @@ argparse
 boto3
 botoflow
 netifaces
+onepasswordconnectsdk
 python-dateutil
 pytz
 pyzmq
