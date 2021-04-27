@@ -78,7 +78,7 @@ from pylib.aws.swf import SWFActivityWaiter, \
 from pylib.process import SignalHandler, exec_cmd
 from pylib import threads
 from pylib.threads import thread_nanny
-from pylib.zmq import Publisher, URL_WORKER_PUBLISHER
+from pylib.zmq import AppPuller, Publisher
 
 # expose builtins for lint-friendly
 log = builtins.log
