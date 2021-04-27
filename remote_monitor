@@ -52,10 +52,9 @@ from botoflow.exceptions import ActivityTaskFailedError, \
 
 builtins.APP_NAME = Path(__file__).stem
 builtins.SENTRY_EXTRAS = []
-RESIN_APP_NAME = os.environ['RESIN_APP_NAME']
 AWS_REGION = os.environ['AWS_DEFAULT_REGION']
 class CredsConfig:
-    sentry_dsn: f'opitem:"Sentry" opfield:{RESIN_APP_NAME}.dsn' = None # type: ignore
+    sentry_dsn: f'opitem:"Sentry" opfield:{APP_NAME}.dsn' = None # type: ignore
     aws_akid: f'opitem:"AWS" opfield:{AWS_REGION}.akid' = None # type: ignore
     aws_sak: f'opitem:"AWS" opfield:{AWS_REGION}.sak' = None # type: ignore
 # instantiate class
