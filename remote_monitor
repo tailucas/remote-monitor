@@ -17,9 +17,8 @@ import time
 import umsgpack
 import zmq
 
-# pylint: disable=import-error
-from ADCPi import ADCPi
-from IOPi import IOPi
+from ADCPi import ADCPi # type: ignore
+from IOPi import IOPi # type: ignore
 
 from configparser import ConfigParser
 
@@ -106,7 +105,7 @@ class Relay(Thread):
         self._io = io
         self._pin = pin
         self._zmq_url = URL_WORKER_RELAY.format(relay_name)
-        self.socket = zmq_context.socket(zmq.PULL) # pylint: disable=no-member
+        self.socket = zmq_context.socket(zmq.PULL) # type: ignore
         self.socket.bind(self._zmq_url)
 
     @property
@@ -145,12 +144,12 @@ class RelayControl(Thread):
         super(RelayControl, self).__init__()
         self.daemon = True
         # Pull socket to receive relay control commands
-        self.socket = zmq_context.socket(zmq.PULL) # pylint: disable=no-member
+        self.socket = zmq_context.socket(zmq.PULL) # type: ignore
         self.socket.bind(URL_WORKER_RELAY_CTRL)
         # Push socket to control relays
         self._sockets = dict()
         for relay, worker_url in list(relay_mappings.items()):
-            socket = zmq_context.socket(zmq.PUSH) # pylint: disable=no-member
+            socket = zmq_context.socket(zmq.PUSH) # type: ignore
             self._sockets[relay] = socket
             socket.connect(worker_url)
         self._output_to_relay = dict()
@@ -295,13 +294,13 @@ if __name__ == "__main__":
     # start up threads
     publisher = Publisher(
         zmq_context=zmq_context,
-        zmq_ipc_url=URL_WORKER_PUBLISHER,
+        zmq_ipc_url=URL_WORKER_PUBLISHER, # type: ignore
         pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
         pub_port=APP_CONFIG.get('zmq', 'pubsub_port'))
     publisher.start()
     threads.threads_tracked.add(publisher.getName())
-    publisher_socket = zmq_context.socket(zmq.PUSH) # pylint: disable=no-member
-    publisher_socket.connect(URL_WORKER_PUBLISHER)
+    publisher_socket = zmq_context.socket(zmq.PUSH) # type: ignore
+    publisher_socket.connect(URL_WORKER_PUBLISHER) # type: ignore
 
     # start relay control
     relay_control.start()
