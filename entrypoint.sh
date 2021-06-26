@@ -17,7 +17,7 @@ export RESIN_API_KEY="${API_KEY_RESIN:-$RESIN_API_KEY}"
 # root user access, prefer key
 mkdir -p /root/.ssh/
 
-echo "$(/opt/app/bin/python /opt/app/cred_tool <<< '{"s": {"opitem": "SSH", "opfield": ".password"}}')" > /root/.ssh/authorized_keys
+echo "$(/opt/app/bin/python /opt/app/pylib/cred_tool <<< '{"s": {"opitem": "SSH", "opfield": ".password"}}')" > /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
 if [ -n "${ROOT_PASSWORD:-}" ]; then
   echo "root:${ROOT_PASSWORD}" | chpasswd
@@ -75,7 +75,7 @@ chown -R "${APP_USER}:${APP_GROUP}" /data/
 mkdir -p "/home/${APP_USER}/.aws/"
 chown -R "${APP_USER}:${APP_GROUP}" "/home/${APP_USER}/"
 # AWS configuration (no tee for secrets)
-cat /opt/app/config/aws-config | /opt/app/config_interpol > "/home/${APP_USER}/.aws/config"
+cat /opt/app/config/aws-config | /opt/app/pylib/config_interpol > "/home/${APP_USER}/.aws/config"
 # patch botoflow to work-around
 # AttributeError: 'Endpoint' object has no attribute 'timeout'
 PY_BASE_WORKER="$(find /opt/app/ -name base_worker.py)"
@@ -112,7 +112,7 @@ fi
 # logentries
 if [ -n "${RSYSLOG_LOGENTRIES:-}" ]; then
   set +x
-  RSYSLOG_LOGENTRIES_TOKEN="$(/opt/app/bin/python /opt/app/cred_tool <<< '{"s": {"opitem": "Logentries", "opfield": "${APP_NAME}.token"}}')"
+  RSYSLOG_LOGENTRIES_TOKEN="$(/opt/app/bin/python /opt/app/pylib/cred_tool <<< '{"s": {"opitem": "Logentries", "opfield": "${APP_NAME}.token"}}')"
   if [ -n "${RSYSLOG_LOGENTRIES_TOKEN:-}" ] && ! grep -q "$RSYSLOG_LOGENTRIES_TOKEN" /etc/rsyslog.d/logentries.conf; then
     echo "\$template LogentriesFormat,\"${RSYSLOG_LOGENTRIES_TOKEN} %HOSTNAME% %syslogtag%%msg%\n\"" >> /etc/rsyslog.d/logentries.conf
     RSYSLOG_TEMPLATE=";LogentriesFormat"
@@ -134,7 +134,7 @@ for iface in wlan0 eth0; do
   fi
 done
 # application configuration (no tee for secrets)
-cat /opt/app/config/app.conf | /opt/app/config_interpol > "/opt/app/${APP_NAME}.conf"
+cat /opt/app/config/app.conf | /opt/app/pylib/config_interpol > "/opt/app/${APP_NAME}.conf"
 unset ETH0_IP
 
 # load I2C
@@ -161,7 +161,7 @@ echo "export HISTFILE=/data/.bash_history" >> /etc/bash.bashrc
 # systemd configuration
 for systemdsvc in app; do
   if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
-    cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
+    cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/pylib/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
     chmod 664 "/etc/systemd/system/${systemdsvc}.service"
     systemctl enable "${systemdsvc}"
   fi
