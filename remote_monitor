@@ -48,8 +48,9 @@ from botoflow.constants import SECONDS, MINUTES
 from botoflow.exceptions import ActivityTaskFailedError, \
     WorkflowFailedError, WorkflowTimedOutError
 
-
-builtins.APP_NAME = Path(__file__).stem
+# setup builtins used by pylib init
+app_name = Path(__file__).stem
+builtins.APP_NAME = app_name
 builtins.SENTRY_EXTRAS = []
 AWS_REGION = os.environ['AWS_DEFAULT_REGION']
 class CredsConfig:
@@ -59,7 +60,11 @@ class CredsConfig:
 # instantiate class
 builtins.creds_config = CredsConfig()
 
-import lib
+from lib import app_config, \
+    creds, \
+    device_name, \
+    device_name_base, \
+    log
 
 from lib.bluetooth import bluetooth_init, ping_bluetooth_devices
 from lib.datetime import is_list, make_timestamp, parse_datetime
@@ -77,14 +82,7 @@ from lib.aws.swf import SWFActivityWaiter, \
 from lib.process import SignalHandler, exec_cmd
 from lib import threads
 from lib.threads import thread_nanny
-from lib.zmq import AppPuller, Publisher
-
-# expose builtins for lint-friendly
-log = builtins.log
-APP_CONFIG = builtins.APP_CONFIG
-zmq_context = builtins.zmq_context
-APP_NAME = builtins.APP_NAME
-DEVICE_NAME = builtins.DEVICE_NAME
+from lib.zmq import zmq_context, zmq_socket, AppPuller, Publisher
 
 # FIXME: benchmark this to supply voltage using test pin or something else
 ADC_SAMPLE_MAX = 5.0
@@ -105,7 +103,7 @@ class Relay(Thread):
         self._io = io
         self._pin = pin
         self._zmq_url = URL_WORKER_RELAY.format(relay_name)
-        self.socket = zmq_context.socket(zmq.PULL) # type: ignore
+        self.socket = zmq_socket(zmq.PULL) # type: ignore
         self.socket.bind(self._zmq_url)
 
     @property
@@ -144,12 +142,12 @@ class RelayControl(Thread):
         super(RelayControl, self).__init__()
         self.daemon = True
         # Pull socket to receive relay control commands
-        self.socket = zmq_context.socket(zmq.PULL) # type: ignore
+        self.socket = zmq_socket(zmq.PULL) # type: ignore
         self.socket.bind(URL_WORKER_RELAY_CTRL)
         # Push socket to control relays
         self._sockets = dict()
         for relay, worker_url in list(relay_mappings.items()):
-            socket = zmq_context.socket(zmq.PUSH) # type: ignore
+            socket = zmq_socket(zmq.PUSH) # type: ignore
             self._sockets[relay] = socket
             socket.connect(worker_url)
         self._output_to_relay = dict()
@@ -200,14 +198,14 @@ if __name__ == "__main__":
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
                                             swf_region,
                                             swf_domain,
-                                            APP_NAME,
+                                            app_name,
                                             swf_activity, DeviceInfoActivity()))
     swf_worker._worker.unhandled_exception_handler = swf_exception_handler
     swf_worker.start()
 
     # process configuration
     adcs = dict()
-    for adc, address in APP_CONFIG.items('adc_address'):
+    for adc, address in app_config.items('adc_address'):
         log.info("Configuring '{}' @ '{}'".format(adc, address))
         address = address.split(',')
         adcs[adc] = ADCPi(int(address[0], 16),
@@ -215,7 +213,7 @@ if __name__ == "__main__":
                           12)
 
     ios = dict()
-    for io, address in APP_CONFIG.items('io_address'):
+    for io, address in app_config.items('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
         io_port = IOPi(int(address, 16))
         # set port direction to output
@@ -227,7 +225,7 @@ if __name__ == "__main__":
         ios[io] = io_port
 
     relay_to_io = dict()
-    for relay, address in APP_CONFIG.items('relay_address'):
+    for relay, address in app_config.items('relay_address'):
         io, pin = tuple(address.split(':'))
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
@@ -245,14 +243,14 @@ if __name__ == "__main__":
 
     relay_control = RelayControl(relay_mappings=relay_to_worker)
 
-    input_types = dict(APP_CONFIG.items('input_type'))
+    input_types = dict(app_config.items('input_type'))
     # name overrides location name
-    input_names = dict(APP_CONFIG.items('input_name'))
-    input_locations = dict(APP_CONFIG.items('input_location'))
+    input_names = dict(app_config.items('input_name'))
+    input_locations = dict(app_config.items('input_location'))
     # construct the device representation
     input_devices = dict()
-    output_types = dict(APP_CONFIG.items('output_type'))
-    output_locations = dict(APP_CONFIG.items('output_location'))
+    output_types = dict(app_config.items('output_type'))
+    output_locations = dict(app_config.items('output_location'))
     device_info = dict()
     device_info['inputs'] = list()
     for field, input_type in list(input_types.items()):
@@ -276,14 +274,14 @@ if __name__ == "__main__":
             'location': output_location,
             'device_key': device_key
         })
-        if APP_CONFIG.has_option('output_relay', field):
-            relay = APP_CONFIG.get('output_relay', field)
+        if app_config.has_option('output_relay', field):
+            relay = app_config.get('output_relay', field)
             log.info("'{}' will trigger '{}'".format(device_key, relay))
             relay_control.add_output(
                 device_key=device_key,
                 relay=relay)
 
-    input_addresses = dict(APP_CONFIG.items('input_address'))
+    input_addresses = dict(app_config.items('input_address'))
     input_to_adc = dict()
     for field in input_addresses:
         adc, pin = tuple(input_addresses[field].split(':'))
@@ -295,11 +293,11 @@ if __name__ == "__main__":
     publisher = Publisher(
         zmq_context=zmq_context,
         zmq_ipc_url=URL_WORKER_PUBLISHER, # type: ignore
-        pub_ip=APP_CONFIG.get('app', 'eth0_ip'),
-        pub_port=APP_CONFIG.get('zmq', 'pubsub_port'))
+        pub_ip=app_config.get('app', 'eth0_ip'),
+        pub_port=app_config.get('zmq', 'pubsub_port'))
     publisher.start()
     threads.threads_tracked.add(publisher.getName())
-    publisher_socket = zmq_context.socket(zmq.PUSH) # type: ignore
+    publisher_socket = zmq_socket(zmq.PUSH) # type: ignore
     publisher_socket.connect(URL_WORKER_PUBLISHER) # type: ignore
 
     # start relay control
@@ -308,9 +306,9 @@ if __name__ == "__main__":
 
     samples_processed = 0
 
-    input_normal_values = dict(APP_CONFIG.items('input_normal_values'))
-    tamper_label = APP_CONFIG.get('app', 'tamper_label')
-    input_tamper_values = dict(APP_CONFIG.items('input_tamper_values'))
+    input_normal_values = dict(app_config.items('input_normal_values'))
+    tamper_label = app_config.get('app', 'tamper_label')
+    input_tamper_values = dict(app_config.items('input_tamper_values'))
 
     # must be main thread
     signal_handler = SignalHandler()
