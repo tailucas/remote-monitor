@@ -393,9 +393,6 @@ if __name__ == "__main__":
         message = "Shutting down {}..."
         log.info(message.format('SWF activity worker'))
         swf_worker.stop()
-        log.info(message.format('SWF activity channel'))
-        # stop SWF activity to close ZMQ channel
-        swf_activity.stop()
         log.info(message.format('ZMQ publisher'))
         publisher_socket.close()
         log.info(message.format('ZMQ context'))
