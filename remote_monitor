@@ -272,7 +272,7 @@ if __name__ == "__main__":
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
     # external communication
-    pub_ip=app_config.get('app', 'eth0_ip'),
+    pub_ip=app_config.get('app', 'eth0_ip')
     pub_port=app_config.get('zmq', 'pubsub_port')
     publisher = ZmqRelay(
         name='interplexing-beacon',
