@@ -64,7 +64,8 @@ from lib import app_config, \
     creds, \
     device_name, \
     device_name_base, \
-    log
+    log, \
+    URL_WORKER_PUBLISHER
 
 from lib.bluetooth import bluetooth_init, ping_bluetooth_devices
 from lib.datetime import is_list, make_timestamp, parse_datetime
@@ -82,7 +83,10 @@ from lib.aws.swf import SWFActivityWaiter, \
 from lib.process import SignalHandler, exec_cmd
 from lib import threads
 from lib.threads import thread_nanny
-from lib.zmq import zmq_context, zmq_socket, AppPuller, Publisher
+from lib.app import ZmqRelay, AppThread
+from lib.zmq import zmq_socket, zmq_term, Closable
+from lib.handler import exception_handler
+
 
 # FIXME: benchmark this to supply voltage using test pin or something else
 ADC_SAMPLE_MAX = 5.0
@@ -94,25 +98,24 @@ URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
 
 
-class Relay(Thread):
+class Relay(AppThread, Closable):
 
     def __init__(self, relay_name, io, pin):
-        super(Relay, self).__init__()
-        self.daemon = True
         self._name = relay_name
+        AppThread.__init__(self, name=f'{self.__class__.__name__}::{relay_name}')
+        self._zmq_url = URL_WORKER_RELAY.format(relay_name)
+        Closable.__init__(self, connect_url=self._zmq_url, socket_type=zmq.PULL)
+
         self._io = io
         self._pin = pin
-        self._zmq_url = URL_WORKER_RELAY.format(relay_name)
-        self.socket = zmq_socket(zmq.PULL) # type: ignore
-        self.socket.bind(self._zmq_url)
 
     @property
     def zmq_url(self):
         return self._zmq_url
 
     def run(self):
-        while True:
-            try:
+        with exception_handler():
+            while not threads.shutting_down:
                 relay_ctrl = self.socket.recv_pyobj()
                 if 'state' in relay_ctrl:
                     if relay_ctrl['state'] is True:
@@ -126,35 +129,25 @@ class Relay(Thread):
                         self._io.write_pin(self._pin, 1)
                         sleep(float(duration))
                     self._io.write_pin(self._pin, 0)
-            except ContextTerminated:
-                self.socket.close()
-                break
-            except Exception:
-                log.exception(self.__class__.__name__)
-                capture_exception()
-                sleep(1)
-                continue
 
 
-class RelayControl(Thread):
+class RelayControl(AppThread, Closable):
 
     def __init__(self, relay_mappings):
-        super(RelayControl, self).__init__()
-        self.daemon = True
-        # Pull socket to receive relay control commands
-        self.socket = zmq_socket(zmq.PULL) # type: ignore
-        self.socket.bind(URL_WORKER_RELAY_CTRL)
+        AppThread.__init__(self, name=self.__class__.__name__)
+        Closable.__init__(self, connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL)
+
         # Push socket to control relays
         self._sockets = dict()
         for relay, worker_url in list(relay_mappings.items()):
-            socket = zmq_socket(zmq.PUSH) # type: ignore
+            socket = self.get_socket(zmq.PUSH)
             self._sockets[relay] = socket
             socket.connect(worker_url)
         self._output_to_relay = dict()
 
     def run(self):
-        while True:
-            try:
+        with exception_handler():
+            while not threads.shutting_down:
                 device_key, duration = self.socket.recv_pyobj()
                 log.debug("Relay event for '{}'".format(device_key))
                 if device_key not in self._output_to_relay:
@@ -172,16 +165,6 @@ class RelayControl(Thread):
                 else:
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
                     post_count_metric('Errors')
-            except ContextTerminated:
-                self.socket.close()
-                for socket in list(self._sockets.values()):
-                    socket.close()
-                break
-            except Exception:
-                log.exception(self.__class__.__name__)
-                capture_exception()
-                sleep(1)
-                continue
 
     def add_output(self, device_key, relay):
         if device_key in self._output_to_relay:
@@ -237,7 +220,6 @@ if __name__ == "__main__":
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
         relay.start()
-        threads.threads_tracked.add(relay.getName())
         relay_workers.append(relay)
         relay_to_worker[relay_name] = relay.zmq_url
 
@@ -289,20 +271,23 @@ if __name__ == "__main__":
         # get the normal value
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
-    # start up threads
-    publisher = Publisher(
-        zmq_context=zmq_context,
-        zmq_ipc_url=URL_WORKER_PUBLISHER, # type: ignore
-        pub_ip=app_config.get('app', 'eth0_ip'),
-        pub_port=app_config.get('zmq', 'pubsub_port'))
+    # external communication
+    pub_ip=app_config.get('app', 'eth0_ip'),
+    pub_port=app_config.get('zmq', 'pubsub_port')
+    publisher = ZmqRelay(
+        name='interplexing-beacon',
+        source_zmq_url=URL_WORKER_PUBLISHER,
+        source_socket_type=zmq.PULL,
+        sink_zmq_url=f'tcp://{pub_ip}:{pub_port}',
+        sink_socket_type=zmq.PUB)
     publisher.start()
-    threads.threads_tracked.add(publisher.getName())
-    publisher_socket = zmq_socket(zmq.PUSH) # type: ignore
-    publisher_socket.connect(URL_WORKER_PUBLISHER) # type: ignore
+
+    # heartbeats
+    publisher_socket = zmq_socket(zmq.PUSH)
+    publisher_socket.connect(URL_WORKER_PUBLISHER)
 
     # start relay control
     relay_control.start()
-    threads.threads_tracked.add(relay_control.getName())
 
     samples_processed = 0
 
@@ -313,10 +298,9 @@ if __name__ == "__main__":
     # must be main thread
     signal_handler = SignalHandler()
     # start the nanny
-    f = threading.Thread(name='nanny', target=thread_nanny, args=(signal_handler,))
-    f.setDaemon(True)
-    f.start()
-
+    nanny = threading.Thread(name='nanny', target=thread_nanny, args=(signal_handler,))
+    nanny.setDaemon(True)
+    nanny.start()
     try:
         # startup completed
         # back to INFO logging
@@ -415,7 +399,7 @@ if __name__ == "__main__":
         log.info(message.format('ZMQ publisher'))
         publisher_socket.close()
         log.info(message.format('ZMQ context'))
-        zmq_context.term()
+        zmq_term()
         log.info(message.format('SWF worker'))
         swf_worker.join()
         log.info('Shutdown complete.')
