@@ -114,7 +114,7 @@ class Relay(AppThread, Closable):
         return self._zmq_url
 
     def run(self):
-        with exception_handler():
+        with exception_handler(closable=self):
             while not threads.shutting_down:
                 relay_ctrl = self.socket.recv_pyobj()
                 if 'state' in relay_ctrl:
@@ -146,7 +146,7 @@ class RelayControl(AppThread, Closable):
         self._output_to_relay = dict()
 
     def run(self):
-        with exception_handler():
+        with exception_handler(closable=self):
             while not threads.shutting_down:
                 device_key, duration = self.socket.recv_pyobj()
                 log.debug("Relay event for '{}'".format(device_key))
@@ -395,7 +395,6 @@ if __name__ == "__main__":
         swf_worker.stop()
         log.info(message.format('ZMQ publisher'))
         publisher_socket.close()
-        log.info(message.format('ZMQ context'))
         zmq_term()
         log.info(message.format('SWF worker'))
         swf_worker.join()
