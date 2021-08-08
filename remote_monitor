@@ -395,7 +395,6 @@ if __name__ == "__main__":
         swf_worker.stop()
         log.info(message.format('ZMQ publisher'))
         publisher_socket.close()
+    finally:
         zmq_term()
-        log.info(message.format('SWF worker'))
-        swf_worker.join()
-        log.info('Shutdown complete.')
+    log.info('Shutdown complete.')
