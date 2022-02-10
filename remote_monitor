@@ -8,6 +8,7 @@ import logging
 import logging.handlers
 import netifaces
 import os
+import pika
 import pytz
 import sentry_sdk
 import signal
@@ -176,6 +177,14 @@ class RelayControl(AppThread, Closable):
 
 
 if __name__ == "__main__":
+    # connect to RabbitMQ
+    mq_config_server = app_config.get('rabbitmq', 'server_address')
+    mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=mq_config_server))
+    mq_channel = mq_connection.channel()
+    mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
+    mq_exchange_type = 'topic'
+    mq_channel.exchange_declare(exchange=mq_config_exchange, exchange_type=mq_exchange_type)
+    log.info(f'Using RabbitMQ server at {mq_config_server} using {mq_exchange_type} exchange {mq_config_exchange}.')
     # connect to SWF
     swf_activity = IOBoardActivity(URL_WORKER_RELAY_CTRL)
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
@@ -379,10 +388,17 @@ if __name__ == "__main__":
             else:
                 inactivity = time.time() - last_upload
                 if inactivity > HEARTBEAT_INTERVAL_SECONDS:
-                    publisher_socket.send_pyobj({
+                    heartbeat_payload = {
                         'statistics': {'sample_count': samples_processed},
                         'device_info': device_info
-                    })
+                    }
+                    publisher_socket.send_pyobj(heartbeat_payload)
+                    mq_channel.basic_publish(
+                        exchange=mq_config_exchange,
+                        routing_key=f'heartbeat.{app_name}',
+                        body=json.dumps(make_payload(
+                            data=heartbeat_payload,
+                            msgpack=False)))
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
@@ -391,6 +407,8 @@ if __name__ == "__main__":
         threads.shutting_down = True
         threads.interruptable_sleep.set()
         message = "Shutting down {}..."
+        log.info(message.format('RabbitMQ worker'))
+        mq_connection.close()
         log.info(message.format('SWF activity worker'))
         swf_worker.stop()
         log.info(message.format('ZMQ publisher'))
