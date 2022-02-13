@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import builtins
 import copy
-import json
 import logging
 import logging.handlers
 import os
@@ -13,17 +12,10 @@ import zmq
 from ADCPi import ADCPi # type: ignore
 from IOPi import IOPi # type: ignore
 
-from configparser import ConfigParser
-
-from datetime import datetime
 from pathlib import Path
 from random import randint
-from sentry_sdk import capture_exception
-from threading import Thread
 from time import sleep
-from traceback import StackSummary
 from zmq import ContextTerminated
-from zmq.error import ZMQError
 
 import botocore
 import os.path
