@@ -1,21 +1,13 @@
 #!/usr/bin/env python
-import boto3
 import builtins
 import copy
-import dateutil.parser
 import json
 import logging
 import logging.handlers
-import netifaces
 import os
 import pika
-import pytz
-import sentry_sdk
-import signal
-import sys
 import threading
 import time
-import umsgpack
 import zmq
 
 from ADCPi import ADCPi # type: ignore
@@ -184,7 +176,8 @@ if __name__ == "__main__":
     mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
     mq_exchange_type = 'topic'
     mq_channel.exchange_declare(exchange=mq_config_exchange, exchange_type=mq_exchange_type)
-    log.info(f'Using RabbitMQ server at {mq_config_server} using {mq_exchange_type} exchange {mq_config_exchange}.')
+    mq_device_topic = app_config.get('rabbitmq', 'device_topic')
+    log.info(f'Using RabbitMQ server at {mq_config_server} with {mq_exchange_type} ({mq_device_topic}) exchange {mq_config_exchange}.')
     # connect to SWF
     swf_activity = IOBoardActivity(URL_WORKER_RELAY_CTRL)
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
@@ -380,10 +373,15 @@ if __name__ == "__main__":
                 active_devices.append(input_device)
                 log.info("'{}' (detail: {}, sampled: {})".format(device_event_distinction, event_detail, normalized_value))
             if len(active_devices) > 0:
-                publisher_socket.send_pyobj({
+                event_payload = {
                     'samples': output_samples,
                     'active_devices': active_devices
-                })
+                }
+                #publisher_socket.send_pyobj(event_payload)
+                mq_channel.basic_publish(
+                    exchange=mq_config_exchange,
+                    routing_key=f'event.{mq_device_topic}.{device_name}',
+                    body=make_payload(data=event_payload))
                 last_upload = time.time()
             else:
                 inactivity = time.time() - last_upload
@@ -392,13 +390,11 @@ if __name__ == "__main__":
                         'statistics': {'sample_count': samples_processed},
                         'device_info': device_info
                     }
-                    publisher_socket.send_pyobj(heartbeat_payload)
+                    #publisher_socket.send_pyobj(heartbeat_payload)
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'heartbeat.{app_name}',
-                        body=json.dumps(make_payload(
-                            data=heartbeat_payload,
-                            msgpack=False)))
+                        routing_key=f'heartbeat.{mq_device_topic}.{device_name}',
+                        body=make_payload(data=heartbeat_payload))
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")

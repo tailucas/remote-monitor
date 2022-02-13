@@ -9,4 +9,3 @@ pytz
 pyzmq
 sentry-sdk
 simplejson
-u-msgpack-python
