@@ -265,21 +265,6 @@ if __name__ == "__main__":
         # get the normal value
         log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
 
-    # external communication
-    pub_ip=app_config.get('app', 'eth0_ip')
-    pub_port=app_config.get('zmq', 'pubsub_port')
-    publisher = ZmqRelay(
-        name='interplexing-beacon',
-        source_zmq_url=URL_WORKER_PUBLISHER,
-        source_socket_type=zmq.PULL,
-        sink_zmq_url=f'tcp://{pub_ip}:{pub_port}',
-        sink_socket_type=zmq.PUB)
-    publisher.start()
-
-    # heartbeats
-    publisher_socket = zmq_socket(zmq.PUSH)
-    publisher_socket.connect(URL_WORKER_PUBLISHER)
-
     # start relay control
     relay_control.start()
 
@@ -369,7 +354,6 @@ if __name__ == "__main__":
                     'samples': output_samples,
                     'active_devices': active_devices
                 }
-                #publisher_socket.send_pyobj(event_payload)
                 mq_channel.basic_publish(
                     exchange=mq_config_exchange,
                     routing_key=f'event.{mq_device_topic}.{device_name}',
@@ -382,7 +366,6 @@ if __name__ == "__main__":
                         'statistics': {'sample_count': samples_processed},
                         'device_info': device_info
                     }
-                    #publisher_socket.send_pyobj(heartbeat_payload)
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
                         routing_key=f'heartbeat.{mq_device_topic}.{device_name}',
@@ -399,8 +382,6 @@ if __name__ == "__main__":
         mq_connection.close()
         log.info(message.format('SWF activity worker'))
         swf_worker.stop()
-        log.info(message.format('ZMQ publisher'))
-        publisher_socket.close()
     finally:
         zmq_term()
     log.info('Shutdown complete.')
