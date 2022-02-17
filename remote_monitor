@@ -356,7 +356,7 @@ if __name__ == "__main__":
                 }
                 mq_channel.basic_publish(
                     exchange=mq_config_exchange,
-                    routing_key=f'event.{mq_device_topic}.{device_name}',
+                    routing_key=f'event.notify.{mq_device_topic}.{device_name}',
                     body=make_payload(data=event_payload))
                 last_upload = time.time()
             else:
@@ -368,7 +368,7 @@ if __name__ == "__main__":
                     }
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'heartbeat.{mq_device_topic}.{device_name}',
+                        routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
                         body=make_payload(data=heartbeat_payload))
                     last_upload = time.time()
             sleep(SAMPLE_INTERVAL_SECONDS)
