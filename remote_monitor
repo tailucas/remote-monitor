@@ -13,6 +13,7 @@ from ADCPi import ADCPi # type: ignore
 from IOPi import IOPi # type: ignore
 
 from pathlib import Path
+from pika.exceptions import AMQPConnectionError
 from random import randint
 from time import sleep
 from zmq import ContextTerminated
@@ -163,7 +164,11 @@ class RelayControl(AppThread, Closable):
 if __name__ == "__main__":
     # connect to RabbitMQ
     mq_config_server = app_config.get('rabbitmq', 'server_address')
-    mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=mq_config_server))
+    try:
+        mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=mq_config_server))
+    except AMQPConnectionError:
+        log.fatal('RabbitMQ failure at startup.', exc_info=1)
+        exit(1)
     mq_channel = mq_connection.channel()
     mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
     mq_exchange_type = 'topic'
