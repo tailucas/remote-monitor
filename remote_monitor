@@ -15,6 +15,7 @@ from IOPi import IOPi # type: ignore
 from pathlib import Path
 from pika.exceptions import AMQPConnectionError
 from random import randint
+from sentry_sdk.integrations.logging import ignore_logger
 from time import sleep
 from zmq import ContextTerminated
 
@@ -72,6 +73,11 @@ from lib.threads import thread_nanny
 from lib.app import ZmqRelay, AppThread
 from lib.zmq import zmq_socket, zmq_term, Closable
 from lib.handler import exception_handler
+
+
+# Reduce Sentry noise from pika loggers
+ignore_logger('pika.adapters.utils.connection_workflow')
+ignore_logger('pika.adapters.utils.io_services_utils')
 
 
 # FIXME: benchmark this to supply voltage using test pin or something else
