@@ -176,7 +176,7 @@ if __name__ == "__main__":
     try:
         mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=mq_config_server))
     except AMQPConnectionError:
-        log.fatal('RabbitMQ failure at startup.', exc_info=1)
+        log.warning('RabbitMQ failure at startup.', exc_info=1)
         exit(1)
     mq_channel = mq_connection.channel()
     mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
