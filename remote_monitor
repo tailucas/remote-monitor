@@ -13,7 +13,7 @@ from ADCPi import ADCPi # type: ignore
 from IOPi import IOPi # type: ignore
 
 from pathlib import Path
-from pika.exceptions import AMQPConnectionError
+from pika.exceptions import AMQPConnectionError, StreamLostError, ConnectionClosedByBroker
 from random import randint
 from sentry_sdk.integrations.logging import ignore_logger
 from time import sleep
@@ -363,28 +363,31 @@ if __name__ == "__main__":
                 # add the input device to the 'active' list
                 active_devices.append(input_device)
                 log.info("'{}' (detail: {}, sampled: {})".format(device_event_distinction, event_detail, normalized_value))
-            if len(active_devices) > 0:
-                event_payload = {
-                    'samples': output_samples,
-                    'active_devices': active_devices
-                }
-                mq_channel.basic_publish(
-                    exchange=mq_config_exchange,
-                    routing_key=f'event.notify.{mq_device_topic}.{device_name}',
-                    body=make_payload(data=event_payload))
-                last_upload = time.time()
-            else:
-                inactivity = time.time() - last_upload
-                if inactivity > HEARTBEAT_INTERVAL_SECONDS:
-                    heartbeat_payload = {
-                        'statistics': {'sample_count': samples_processed},
-                        'device_info': device_info
+            try:
+                if len(active_devices) > 0:
+                    event_payload = {
+                        'samples': output_samples,
+                        'active_devices': active_devices
                     }
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
-                        body=make_payload(data=heartbeat_payload))
+                        routing_key=f'event.notify.{mq_device_topic}.{device_name}',
+                        body=make_payload(data=event_payload))
                     last_upload = time.time()
+                else:
+                    inactivity = time.time() - last_upload
+                    if inactivity > HEARTBEAT_INTERVAL_SECONDS:
+                        heartbeat_payload = {
+                            'statistics': {'sample_count': samples_processed},
+                            'device_info': device_info
+                        }
+                        mq_channel.basic_publish(
+                            exchange=mq_config_exchange,
+                            routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
+                            body=make_payload(data=heartbeat_payload))
+                        last_upload = time.time()
+            except (ConnectionClosedByBroker, StreamLostError) as e:
+                raise RuntimeWarning() from e
             sleep(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
