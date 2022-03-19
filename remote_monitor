@@ -67,6 +67,7 @@ from lib.aws.swf import SWFActivityWaiter, \
     DeviceInfoActivity, \
     DeviceWorkflow, \
     IOBoardWorkflow
+from lib.rabbit import ZMQListener
 from lib.process import SignalHandler, exec_cmd
 from lib import threads
 from lib.threads import thread_nanny
@@ -184,6 +185,13 @@ if __name__ == "__main__":
     mq_channel.exchange_declare(exchange=mq_config_exchange, exchange_type=mq_exchange_type)
     mq_device_topic = app_config.get('rabbitmq', 'device_topic')
     log.info(f'Using RabbitMQ server at {mq_config_server} with {mq_exchange_type} ({mq_device_topic}) exchange {mq_config_exchange}.')
+    # control listener
+    mq_control_listener = ZMQListener(
+        zmq_url=URL_WORKER_RELAY_CTRL,
+        mq_server_address=mq_config_server,
+        mq_exchange_name=f'{mq_config_exchange}_control',
+        mq_topic_filter=f'event.control.{mq_device_topic}',
+        mq_exchange_type='direct')
     # connect to SWF
     swf_activity = IOBoardActivity(URL_WORKER_RELAY_CTRL)
     swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
@@ -281,7 +289,7 @@ if __name__ == "__main__":
 
     # start relay control
     relay_control.start()
-
+    mq_control_listener.start()
     samples_processed = 0
 
     input_normal_values = dict(app_config.items('input_normal_values'))
@@ -395,6 +403,8 @@ if __name__ == "__main__":
         threads.shutting_down = True
         threads.interruptable_sleep.set()
         message = "Shutting down {}..."
+        log.info(message.format('RabbitMQ control'))
+        mq_control_listener.stop()
         log.info(message.format('RabbitMQ worker'))
         mq_connection.close()
         log.info(message.format('SWF activity worker'))
