@@ -19,21 +19,7 @@ from sentry_sdk.integrations.logging import ignore_logger
 from time import sleep
 from zmq import ContextTerminated
 
-import botocore
 import os.path
-from botoflow import activity, \
-    activities, \
-    execute, \
-    return_, \
-    workflow_starter, \
-    WorkflowDefinition, \
-    ThreadedWorkflowExecutor, \
-    ThreadedActivityExecutor
-from botoflow.workers.workflow_worker import WorkflowWorker
-from botoflow.workers.activity_worker import ActivityWorker
-from botoflow.constants import SECONDS, MINUTES
-from botoflow.exceptions import ActivityTaskFailedError, \
-    WorkflowFailedError, WorkflowTimedOutError
 
 # setup builtins used by pylib init
 app_name = Path(__file__).stem
@@ -48,31 +34,17 @@ class CredsConfig:
 builtins.creds_config = CredsConfig()
 
 from lib import app_config, \
-    creds, \
     device_name, \
-    device_name_base, \
-    log, \
-    URL_WORKER_PUBLISHER
+    log
 
-from lib.bluetooth import bluetooth_init, ping_bluetooth_devices
-from lib.datetime import is_list, make_timestamp, parse_datetime
 from lib.data import make_payload
-from lib.aws import boto_session, \
-    swf_region, \
-    swf_domain
 from lib.aws.metrics import post_count_metric
-from lib.aws.swf import SWFActivityWaiter, \
-    swf_exception_handler, \
-    IOBoardActivity, \
-    DeviceInfoActivity, \
-    DeviceWorkflow, \
-    IOBoardWorkflow
 from lib.rabbit import ZMQListener
-from lib.process import SignalHandler, exec_cmd
+from lib.process import SignalHandler
 from lib import threads
 from lib.threads import thread_nanny
-from lib.app import ZmqRelay, AppThread
-from lib.zmq import zmq_socket, zmq_term, Closable
+from lib.app import AppThread
+from lib.zmq import zmq_term, Closable
 from lib.handler import exception_handler
 
 
