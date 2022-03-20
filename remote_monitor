@@ -195,16 +195,6 @@ if __name__ == "__main__":
         mq_exchange_name=f'{mq_config_exchange}_control',
         mq_topic_filter=f'event.control.{mq_device_topic}',
         mq_exchange_type='direct')
-    # connect to SWF
-    swf_activity = IOBoardActivity(URL_WORKER_RELAY_CTRL)
-    swf_worker = ThreadedActivityExecutor(ActivityWorker(boto_session,
-                                            swf_region,
-                                            swf_domain,
-                                            app_name,
-                                            swf_activity, DeviceInfoActivity()))
-    swf_worker._worker.unhandled_exception_handler = swf_exception_handler
-    swf_worker.start()
-
     # process configuration
     adcs = dict()
     for adc, address in app_config.items('adc_address'):
@@ -410,8 +400,6 @@ if __name__ == "__main__":
         mq_control_listener.stop()
         log.info(message.format('RabbitMQ worker'))
         mq_connection.close()
-        log.info(message.format('SWF activity worker'))
-        swf_worker.stop()
     finally:
         zmq_term()
     log.info('Shutdown complete.')
