@@ -144,7 +144,10 @@ class RelayControl(AppThread, Closable):
     def run(self):
         with exception_handler(closable=self):
             while not threads.shutting_down:
-                device_key, duration = self.socket.recv_pyobj()
+                device_event = self.socket.recv_pyobj()
+                for _,payload in device_event.items():
+                    device_key, duration = payload['data']
+                    break
                 log.debug("Relay event for '{}'".format(device_key))
                 if device_key not in self._output_to_relay:
                     log.debug("'{}' is not configured for relay control".format(device_key))
