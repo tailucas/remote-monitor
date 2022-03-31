@@ -372,7 +372,10 @@ if __name__ == "__main__":
         log.info(message.format('RabbitMQ control'))
         mq_control_listener.stop()
         log.info(message.format('RabbitMQ worker'))
-        mq_connection.close()
+        try:
+            mq_connection.close()
+        except AMQPConnectionError as e:
+            log.warning(f'When closing: {e!s}')
     finally:
         zmq_term()
     log.info('Shutdown complete.')
