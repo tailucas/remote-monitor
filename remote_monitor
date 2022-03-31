@@ -360,7 +360,7 @@ if __name__ == "__main__":
                             routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
                             body=make_payload(data=heartbeat_payload))
                         last_upload = time.time()
-            except (ConnectionClosedByBroker, StreamLostError) as e:
+            except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
                 raise RuntimeWarning() from e
             sleep(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
@@ -374,7 +374,7 @@ if __name__ == "__main__":
         log.info(message.format('RabbitMQ worker'))
         try:
             mq_connection.close()
-        except AMQPConnectionError as e:
+        except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
             log.warning(f'When closing: {e!s}')
     finally:
         zmq_term()
