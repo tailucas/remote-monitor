@@ -112,23 +112,6 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
 *.* @${RSYSLOG_SERVER}${RSYSLOG_TEMPLATE:-}
 EOF
 fi
-# logentries
-if [ -n "${RSYSLOG_LOGENTRIES:-}" ]; then
-  set +x
-  RSYSLOG_LOGENTRIES_TOKEN="$(/opt/app/bin/python /opt/app/pylib/cred_tool <<< '{"s": {"opitem": "Logentries", "opfield": "${APP_NAME}.token"}}')"
-  if [ -n "${RSYSLOG_LOGENTRIES_TOKEN:-}" ] && ! grep -q "$RSYSLOG_LOGENTRIES_TOKEN" /etc/rsyslog.d/logentries.conf; then
-    echo "\$template LogentriesFormat,\"${RSYSLOG_LOGENTRIES_TOKEN} %HOSTNAME% %syslogtag%%msg%\n\"" >> /etc/rsyslog.d/logentries.conf
-    RSYSLOG_TEMPLATE=";LogentriesFormat"
-  fi
-  echo "*.*          @@${RSYSLOG_LOGENTRIES_SERVER}${RSYSLOG_TEMPLATE:-}" >> /etc/rsyslog.d/logentries.conf
-  unset RSYSLOG_LOGENTRIES_TOKEN
-  set -x
-fi
-# bounce rsyslog for the new data
-if find /etc/rsyslog.d/ -mindepth 1 -print -quit 2>/dev/null | grep -q .; then
-  service rsyslog restart
-fi
-
 # configuration update
 for iface in wlan0 eth0; do
   export ETH0_IP="$(/sbin/ifconfig ${iface} | grep 'inet' | awk '{ print $2 }' | cut -f2 -d ':')"
