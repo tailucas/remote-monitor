@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import builtins
 import copy
-import logging
 import logging.handlers
-import os
 import pika
 import threading
 import time

@@ -2,50 +2,18 @@
 set -eu
 set -o pipefail
 
-# host heartbeat, must fail if variable is unset
-echo "Installing heartbeat to ${HC_PING_URL}"
-cp /opt/app/config/healthchecks_heartbeat /etc/cron.d/healthchecks_heartbeat
-
 while [ -n "${STAY_DOWN:-}" ]; do
   echo "${BALENA_DEVICE_NAME_AT_INIT} (${BALENA_DEVICE_ARCH} ${BALENA_DEVICE_TYPE}) is in StayDown (unset STAY_DOWN variable to start)."
   curl -s -X GET --header "Content-Type:application/json" "${BALENA_SUPERVISOR_ADDRESS}/v1/device?apikey=${BALENA_SUPERVISOR_API_KEY}" | jq
   sleep 3600
 done
 
+# host heartbeat, must fail if variable is unset
+echo "Installing heartbeat to ${HC_PING_URL}"
+cp /opt/app/config/healthchecks_heartbeat /etc/cron.d/healthchecks_heartbeat
+
 # Resin API key (prefer override from application/device environment)
 export RESIN_API_KEY="${API_KEY_RESIN:-$RESIN_API_KEY}"
-# root user access, prefer key
-mkdir -p /root/.ssh/
-
-AUTH_KEYS_FILE="/root/.ssh/authorized_keys"
-echo "$(/opt/app/bin/python /opt/app/pylib/cred_tool <<< '{"s": {"opitem": "SSH", "opfield": ".password"}}')" > "${AUTH_KEYS_FILE}"
-[ -e "${AUTH_KEYS_FILE}" ] && grep -q '[^[:space:]]' "${AUTH_KEYS_FILE}"
-chmod 600 "${AUTH_KEYS_FILE}"
-unset AUTH_KEYS_FILE
-if [ -n "${ROOT_PASSWORD:-}" ]; then
-  echo "root:${ROOT_PASSWORD}" | chpasswd
-  sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-  # SSH login fix. Otherwise user is kicked off after login
-  sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
-fi
-# https://bugs.launchpad.net/ubuntu/+source/openssh/+bug/45234
-mkdir -p /run/sshd
-# reload sshd
-service ssh reload
-
-# aws code commit
-if [ -n "${AWS_REPO_SSH_KEY_ID:-}" ]; then
-  # ssh
-  echo "$AWS_REPO_SSH_PRIVATE_KEY" | base64 -d > /root/.ssh/codecommit_rsa
-  chmod 600 /root/.ssh/codecommit_rsa
-  cat << EOF >> /root/.ssh/config
-StrictHostKeyChecking=no
-Host git-codecommit.*.amazonaws.com
-  User $AWS_REPO_SSH_KEY_ID
-  IdentityFile /root/.ssh/codecommit_rsa
-EOF
-  chmod 600 /root/.ssh/config
-fi
 
 # Create /etc/docker.env
 if [ ! -e /etc/docker.env ]; then
@@ -58,7 +26,7 @@ fi
 set -x
 
 # attempt to remove these kernel modules
-for module in "${REMOVE_KERNEL_MODULES:-}"; do
+for module in ${REMOVE_KERNEL_MODULES:-}; do
   rmmod $module || true
 done
 
@@ -74,23 +42,6 @@ id -u "${APP_USER}" || useradd -r -g "${APP_GROUP}" "${APP_USER}"
 chown "${APP_USER}:${APP_GROUP}" /opt/app/*
 # non-volatile storage
 chown -R "${APP_USER}:${APP_GROUP}" /data/
-# home
-mkdir -p "/home/${APP_USER}/.aws/"
-chown -R "${APP_USER}:${APP_GROUP}" "/home/${APP_USER}/"
-# AWS configuration (no tee for secrets)
-cat /opt/app/config/aws-config | /opt/app/pylib/config_interpol > "/home/${APP_USER}/.aws/config"
-# patch botoflow to work-around
-# AttributeError: 'Endpoint' object has no attribute 'timeout'
-PY_BASE_WORKER="$(find /opt/app/ -name base_worker.py)"
-patch -f -u "$PY_BASE_WORKER" -i /opt/app/config/base_worker.patch || true
-
-TZ_CACHE=/data/localtime
-# a valid symlink
-if [ -h "$TZ_CACHE" ] && [ -e "$TZ_CACHE" ]; then
-  cp -a "$TZ_CACHE" /etc/localtime
-fi
-# set the timezone
-(tzupdate && cp -a /etc/localtime "$TZ_CACHE") || [ -e "$TZ_CACHE" ]
 
 # reset hostname (in a way that works)
 # https://forums.resin.io/t/read-only-file-system-when-calling-setstatichostname-via-dbus/1578/10
@@ -122,6 +73,8 @@ done
 # application configuration (no tee for secrets)
 cat /opt/app/config/app.conf | /opt/app/pylib/config_interpol > "/opt/app/${APP_NAME}.conf"
 unset ETH0_IP
+# service configuration
+cat /opt/app/config/supervisord.conf | /opt/app/pylib/config_interpol > /opt/app/supervisord.conf
 
 # load I2C
 modprobe i2c-dev
@@ -132,26 +85,15 @@ adduser "${APP_USER}" i2c
 adduser "${APP_USER}" dialout
 
 # show what i2c buses are available, and grant file permissions
-for i in "$(/usr/sbin/i2cdetect -l | cut -f1)"; do
+for i in $(/usr/sbin/i2cdetect -l | cut -f1); do
   chown "${APP_USER}" "/dev/${i}"
 done
 
 # Load app environment, overriding HOME and USER
 # https://www.freedesktop.org/software/systemd/man/systemd.exec.html
-cat /etc/docker.env | egrep -v "^HOME|^USER" > /opt/app/environment.env
+cat /etc/docker.env | grep -E -v "^HOME|^USER" > /opt/app/environment.env
 echo "HOME=/data/" >> /opt/app/environment.env
 echo "USER=${APP_USER}" >> /opt/app/environment.env
 
-echo "export HISTFILE=/data/.bash_history" >> /etc/bash.bashrc
-
-# systemd configuration
-for systemdsvc in app; do
-  if [ ! -e "/etc/systemd/system/${systemdsvc}.service" ]; then
-    cat "/opt/app/config/systemd.${systemdsvc}.service" | /opt/app/pylib/config_interpol | tee "/etc/systemd/system/${systemdsvc}.service"
-    chmod 664 "/etc/systemd/system/${systemdsvc}.service"
-    systemctl enable "${systemdsvc}"
-  fi
-done
-
-# replace this entrypoint with systemd init scope
-exec env DBUS_SYSTEM_BUS_ADDRESS=unix:path=/run/dbus/system_bus_socket /lib/systemd/systemd quiet systemd.show_status=0
+# replace this entrypoint with process manager
+exec env supervisord -n -c /opt/app/supervisord.conf

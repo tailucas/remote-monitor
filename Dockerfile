@@ -1,9 +1,6 @@
-FROM balenalib/raspberry-pi-debian:buster-run
+FROM balenalib/raspberry-pi-debian:bullseye-run
 ENV INITSYSTEM on
 ENV container docker
-
-MAINTAINER Tai Lucas <tglucas@gmail.com>
-LABEL Description="remote_monitor" Vendor="tglucas" Version="1.0"
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN true
@@ -29,13 +26,10 @@ RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommend
     python3-wheel \
     rsyslog \
     strace \
-    systemd \
+    supervisor \
     tree \
     vim \
-    wget \
-    && pip3 install \
-        tzupdate \
-    && rm -rf /var/lib/apt/lists/*
+    wget
 
 # python3 default
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1
@@ -44,20 +38,6 @@ COPY . /opt/app
 
 # setup
 RUN /opt/app/app_setup.sh
-
-# systemd masks for containers
-# https://github.com/balena-io-library/base-images/blob/master/examples/INITSYSTEM/systemd/systemd.v230/Dockerfile
-RUN systemctl mask \
-    dev-hugepages.mount \
-    sys-fs-fuse-connections.mount \
-    sys-kernel-config.mount \
-    display-manager.service \
-    getty@.service \
-    systemd-logind.service \
-    systemd-remount-fs.service \
-    getty.target \
-    graphical.target \
-    kmod-static-nodes.service
 
 STOPSIGNAL 37
 # ssh, zmq

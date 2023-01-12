@@ -1,11 +1,4 @@
-RPi.GPIO
-argparse
-boto3
-botoflow
-netifaces
-onepasswordconnectsdk
-python-dateutil
-pytz
+pika
 pyzmq
+RPi.GPIO
 sentry-sdk
-simplejson
