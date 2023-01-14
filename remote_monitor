@@ -376,4 +376,13 @@ if __name__ == "__main__":
             log.warning(f'When closing: {e!s}')
     finally:
         zmq_term()
-    log.info('Shutdown complete.')
+    # exit
+    exit_code = 0
+    exit_cause = threads.trigger_exception
+    exit_message = f'Shutdown complete.'
+    if exit_cause is not None:
+        exit_message += f' Exception was {exit_cause.__name__}.'
+        exit_code = 1
+    exit_message += f' Exiting with code {exit_code}.'
+    log.info(exit_message)
+    exit(code=exit_code)
