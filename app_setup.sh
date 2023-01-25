@@ -1,31 +1,18 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 set -e
 set -o pipefail
 
-# system updates
-
-# work around pip stupidity
-python -m pip install --upgrade pip
-# work around setuptools stupidity
-python -m pip install --upgrade setuptools
-# work around wheel stupidity
-python -m pip install --upgrade wheel
-
 # virtual-env updates
-
-python -m venv --system-site-packages /opt/app/
+python -m venv /opt/app/
 . /opt/app/bin/activate
+python -m site
 # work around timeouts to www.piwheels.org
 export PIP_DEFAULT_TIMEOUT=60
 
-# work around pip stupidity
 python -m pip install --upgrade pip
-# work around setuptools stupidity
 python -m pip install --upgrade setuptools
-# work around wheel stupidity
 python -m pip install --upgrade wheel
 
-# work around apt/pip stupidity
 python -m pip install --upgrade -r "/opt/app/requirements.txt"
 # add pylib dependencies
 if [ -f /opt/app/pylib/requirements.txt ]; then

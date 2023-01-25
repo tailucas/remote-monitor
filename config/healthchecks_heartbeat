@@ -1,1 +1,1 @@
-*/5 * * * * root /opt/app/healthchecks_heartbeat.sh
+*/5 * * * * /opt/app/healthchecks_heartbeat.sh
