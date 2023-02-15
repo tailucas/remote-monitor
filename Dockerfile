@@ -31,10 +31,6 @@ RUN mkdir -p /etc/rsyslog.d/
 RUN touch /etc/rsyslog.d/custom.conf
 RUN chown -R app:app /etc/rsyslog.d/
 
-# cron
-# heartbeat (note missing user from cron configuration)
-RUN crontab /opt/app/config/healthchecks_heartbeat
-
 # setup as root
 RUN /opt/app/app_setup.sh
 USER app
