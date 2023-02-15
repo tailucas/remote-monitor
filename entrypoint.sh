@@ -26,12 +26,15 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
 EOF
 fi
 # application configuration (no tee for secrets)
-cat /opt/app/config/app.conf | /opt/app/pylib/config_interpol > "/opt/app/${APP_NAME}.conf"
+/opt/app/pylib/config_interpol < /opt/app/config/app.conf > /opt/app/app.conf
 # service configuration
-cat /opt/app/config/supervisord.conf | /opt/app/pylib/config_interpol > /opt/app/supervisord.conf
+cp /opt/app/config/supervisord.conf /opt/app/supervisord.conf
 
 # run-as user permissions
 chown app:app /opt/app/
+chown -R app:app /data/
 chown app /dev/i2c-1
+# FIXME: run as unpriviledged user
+/usr/sbin/rsyslogd
 # replace this entrypoint with process manager
-exec env supervisord -n -c /opt/app/supervisord.conf
+exec su-exec app env supervisord -n -c /opt/app/supervisord.conf
