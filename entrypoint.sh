@@ -2,8 +2,8 @@
 set -eu
 set -o pipefail
 
-while [ -n "${STAY_DOWN:-}" ]; do
-  echo "${BALENA_DEVICE_NAME_AT_INIT} (${BALENA_DEVICE_ARCH} ${BALENA_DEVICE_TYPE}) is in StayDown (unset STAY_DOWN variable to start)."
+while [ -n "${NO_START:-}" ]; do
+  echo "${BALENA_DEVICE_NAME_AT_INIT} (${BALENA_DEVICE_ARCH} ${BALENA_DEVICE_TYPE}) is in StayDown (unset NO_START variable to start)."
   curl -s -X GET --header "Content-Type:application/json" "${BALENA_SUPERVISOR_ADDRESS}/v1/device?apikey=${BALENA_SUPERVISOR_API_KEY}" | jq
   sleep 3600
 done
