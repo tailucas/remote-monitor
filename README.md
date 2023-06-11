@@ -139,7 +139,7 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 [issues-shield]: https://img.shields.io/github/issues/tailucas/remote-monitor.svg?style=for-the-badge
 [issues-url]: https://github.com/tailucas/remote-monitor/issues
 [license-shield]: https://img.shields.io/github/license/tailucas/remote-monitor.svg?style=for-the-badge
-[license-url]: https://github.com/tailucas/remote-monitor/blob/main/LICENSE
+[license-url]: https://github.com/tailucas/remote-monitor/blob/master/LICENSE
 
 [blog-url]: https://tailucas.github.io/update/2023/06/11/iot-with-balena-cloud.html
 
