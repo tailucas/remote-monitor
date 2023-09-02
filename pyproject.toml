@@ -17,7 +17,7 @@ rpi-gpio = "^0.7.1"
 sentry-sdk = "^1.15.0"
 smbus2 = "^0.4.2"
 abelectronics = {git = "https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git"}
-pylib = {path = "pylib"}
+tailucas-pylib = "^0.0.1"
 
 
 [build-system]

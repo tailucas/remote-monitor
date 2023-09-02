@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -eu
 set -o pipefail
 
@@ -9,6 +9,16 @@ while [ -n "${NO_START:-}" ]; do
 done
 
 set -x
+
+# cron
+
+# combine crons and register (note missing users)
+rm -f /opt/app/config/app_crontabs
+for c in /opt/app/config/cron/*; do
+  cat "$c" >> /opt/app/config/app_crontabs
+done
+# register user crons
+crontab -u app /opt/app/config/app_crontabs
 
 # rsyslog
 if [ -n "${RSYSLOG_SERVER:-}" ]; then
@@ -26,7 +36,7 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
 EOF
 fi
 # application configuration (no tee for secrets)
-/opt/app/pylib/config_interpol < /opt/app/config/app.conf > /opt/app/app.conf
+/opt/app/config_interpol < /opt/app/config/app.conf > /opt/app/app.conf
 # service configuration
 cp /opt/app/config/supervisord.conf /opt/app/supervisord.conf
 

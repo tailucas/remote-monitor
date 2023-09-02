@@ -1,38 +1,39 @@
-FROM balenalib/raspberry-pi-alpine-python:latest-latest-run
+FROM balenalib/raspberry-pi-python:latest-latest-run
 
-RUN apk update \
-    && apk upgrade \
-    && apk --no-cache add \
-        cargo \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
         curl \
-        dcron \
-        # zmq wheel
-        g++ \
-        # 3rd party libs
-        git \
+        cron \
         # cron non-root
-        libcap \
-        libffi-dev \
-        openssl-dev \
         rsyslog \
-        rust \
-        su-exec \
+        # provides uptime
+        procps \
         supervisor
 
-COPY . /opt/app
-WORKDIR /opt/app
-
-RUN mkdir -p /home/app/
-RUN addgroup app
-RUN adduser -G app -h /home/app -D app
-RUN chown app:app /home/app/
+# create no-password run-as user
+RUN groupadd -f -r -g 999 app
+# create run-as user
+RUN useradd -r -u 999 -g 999 app
+# user permissions
+RUN adduser app audio
+RUN adduser app video
+# cron
+RUN chmod u+s /usr/sbin/cron
+# used by pip, awscli, app
+RUN mkdir -p /home/app/.aws/ /opt/app/
+# file system permissions
+RUN chown app /var/log/
 RUN chown app:app /opt/app/
+RUN chown -R app:app /home/app/
+# rsyslog
 RUN mkdir -p /etc/rsyslog.d/
 RUN touch /etc/rsyslog.d/custom.conf
 RUN chown -R app:app /etc/rsyslog.d/
 
+COPY . /opt/app
+WORKDIR /opt/app
+
 # setup as root
-RUN /opt/app/app_setup.sh
 USER app
 ENV PATH "${PATH}:/home/app/.local/bin"
 ENV PIP_DEFAULT_TIMEOUT 60
