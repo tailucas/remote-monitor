@@ -39,7 +39,7 @@ from tailucas_pylib.process import SignalHandler
 from tailucas_pylib import threads
 from tailucas_pylib.threads import thread_nanny, die, bye
 from tailucas_pylib.app import AppThread
-from tailucas_pylib.zmq import zmq_term, Closable
+from tailucas_pylib.zmq import zmq_term, Closable, zmq_socket
 from tailucas_pylib.handler import exception_handler
 
 
@@ -61,13 +61,12 @@ URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
 
 
-class Relay(AppThread, Closable):
+class Relay(AppThread):
 
     def __init__(self, relay_name, io, pin):
         self._name = relay_name
         AppThread.__init__(self, name=f'{self.__class__.__name__}::{relay_name}')
         self._zmq_url = URL_WORKER_RELAY.format(relay_name)
-        Closable.__init__(self, connect_url=self._zmq_url, socket_type=zmq.PULL)
 
         self._io = io
         self._pin = pin
@@ -77,9 +76,9 @@ class Relay(AppThread, Closable):
         return self._zmq_url
 
     def run(self):
-        with exception_handler(closable=self):
+        with exception_handler(connect_url=self._zmq_url, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
             while not threads.shutting_down:
-                relay_ctrl = self.socket.recv_pyobj()
+                relay_ctrl = zmq_socket.recv_pyobj()
                 if 'state' in relay_ctrl:
                     if relay_ctrl['state'] is True:
                         self._io.write_pin(self._pin, 1)
@@ -94,24 +93,22 @@ class Relay(AppThread, Closable):
                     self._io.write_pin(self._pin, 0)
 
 
-class RelayControl(AppThread, Closable):
+class RelayControl(AppThread):
 
     def __init__(self, relay_mappings):
         AppThread.__init__(self, name=self.__class__.__name__)
-        Closable.__init__(self, connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL)
-
         # Push socket to control relays
         self._sockets = dict()
         for relay, worker_url in list(relay_mappings.items()):
-            socket = self.get_socket(zmq.PUSH)
+            socket = zmq_socket(zmq.PUSH)
             self._sockets[relay] = socket
             socket.connect(worker_url)
         self._output_to_relay = dict()
 
     def run(self):
-        with exception_handler(closable=self):
+        with exception_handler(connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
             while not threads.shutting_down:
-                device_event = self.socket.recv_pyobj()
+                device_event = zmq_socket.recv_pyobj()
                 for _,payload in device_event.items():
                     device_key, duration = payload['data']
                     break
@@ -131,6 +128,12 @@ class RelayControl(AppThread, Closable):
                 else:
                     log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
                     post_count_metric('Errors')
+        for relay, socket in self._sockets.items():
+            log.info(f'Closing ZMQ socket for {relay}...')
+            try:
+                socket.close()
+            except:
+                pass
 
     def add_output(self, device_key, relay):
         if device_key in self._output_to_relay:

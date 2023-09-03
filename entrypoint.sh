@@ -40,11 +40,21 @@ fi
 # service configuration
 cp /opt/app/config/supervisord.conf /opt/app/supervisord.conf
 
-# run-as user permissions
+# job environment
+printenv >> /opt/app/cron.env
+
+# load I2C
+modprobe i2c-dev
+
+# show what i2c buses are available, and grant file permissions
+for i in $(/usr/sbin/i2cdetect -l | cut -f1); do
+  chown app "/dev/${i}"
+done
+
+# run user permissions
 chown app:app /opt/app/
 chown -R app:app /data/
-chown app /dev/i2c-1
 # FIXME: run as unpriviledged user
 /usr/sbin/rsyslogd
 # replace this entrypoint with process manager
-exec su-exec app env supervisord -n -c /opt/app/supervisord.conf
+exec env supervisord -n -c /opt/app/supervisord.conf
