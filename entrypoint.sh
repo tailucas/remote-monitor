@@ -41,7 +41,7 @@ fi
 cp /opt/app/config/supervisord.conf /opt/app/supervisord.conf
 
 # job environment
-printenv >> /opt/app/cron.env
+printenv | sed 's/=\(.*\)/="\1"/' >> /opt/app/cron.env
 
 # load I2C
 modprobe i2c-dev

@@ -8,6 +8,7 @@ import time
 import zmq
 
 from ADCPi import ADCPi # type: ignore
+from ADCPi import TimeoutError
 from IOPi import IOPi # type: ignore
 
 from pathlib import Path
@@ -282,7 +283,7 @@ if __name__ == "__main__":
                     sampled_value = adcs[adc_name].read_voltage(pin)
                 except TimeoutError:
                     log.warning('Timeout reading value from {} on pin {}.'.format(adc_name, pin), exc_info=1)
-                    sleep(1)
+                    threads.interruptable_sleep.wait(1)
                     continue
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
                 input_value = int(input_normal_values[i])
@@ -361,7 +362,7 @@ if __name__ == "__main__":
                         last_upload = time.time()
             except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
                 raise RuntimeWarning() from e
-            sleep(SAMPLE_INTERVAL_SECONDS)
+            threads.interruptable_sleep.wait(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
         die()
