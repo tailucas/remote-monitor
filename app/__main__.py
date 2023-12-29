@@ -40,7 +40,7 @@ from tailucas_pylib.process import SignalHandler
 from tailucas_pylib import threads
 from tailucas_pylib.threads import thread_nanny, die, bye
 from tailucas_pylib.app import AppThread
-from tailucas_pylib.zmq import zmq_term, Closable, zmq_socket
+from tailucas_pylib.zmq import zmq_term, zmq_socket
 from tailucas_pylib.handler import exception_handler
 
 
@@ -341,7 +341,8 @@ if __name__ == "__main__":
                 if len(active_devices) > 0:
                     event_payload = {
                         'samples': output_samples,
-                        'active_devices': active_devices
+                        'active_devices': active_devices,
+                        'outputs_triggered': active_devices
                     }
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
@@ -353,7 +354,9 @@ if __name__ == "__main__":
                     if inactivity > HEARTBEAT_INTERVAL_SECONDS:
                         heartbeat_payload = {
                             'statistics': {'sample_count': samples_processed},
-                            'device_info': device_info
+                            'device_info': device_info,
+                            'inputs': device_info['inputs'],
+                            'outputs': device_info['outputs']
                         }
                         mq_channel.basic_publish(
                             exchange=mq_config_exchange,
