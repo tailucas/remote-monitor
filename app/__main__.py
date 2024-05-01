@@ -393,7 +393,8 @@ if __name__ == "__main__":
                     event_payload = {
                         'samples': output_samples,
                         'active_devices': active_devices,
-                        'outputs_triggered': active_devices
+                        'inputs': active_devices,
+                        'outputs': device_info['outputs']
                     }
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
