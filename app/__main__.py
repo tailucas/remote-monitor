@@ -16,7 +16,7 @@ from pika.exceptions import AMQPConnectionError, StreamLostError, ConnectionClos
 from random import randint
 from sentry_sdk.integrations.logging import ignore_logger
 from time import sleep
-from zmq import ContextTerminated
+from zmq import ContextTerminated, ZMQError
 
 import os.path
 
@@ -60,6 +60,7 @@ SAMPLE_INTERVAL_SECONDS = 0.1
 SAMPLE_DEVIATION_TOLERANCE = 10
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
+URL_WORKER_APP_BRIDGE = 'inproc://app-bridge'
 
 
 class Relay(AppThread):
@@ -145,6 +146,45 @@ class RelayControl(AppThread):
         self._output_to_relay[device_key] = relay
 
 
+class BridgeFilter(AppThread):
+
+    def __init__(self):
+        AppThread.__init__(self, name=self.__class__.__name__)
+        #self.bot = zmq_socket(zmq.PUSH)
+
+    def visit_keys(dictionary, parent_key=''):
+        for key, value in dictionary.items():
+            full_key = f'{parent_key}.{key}' if parent_key else key
+            if isinstance(value, dict):
+                BridgeFilter.visit_keys(value, full_key)
+            elif isinstance(value, str) or isinstance(value, int):
+                log.info(f'{full_key}::{value}')
+            else:
+                log.info(f'{full_key}::{type(value)}')
+
+    # noinspection PyBroadException
+    def run(self):
+        #self.bot.connect(URL_WORKER_TELEGRAM_BOT)
+        with exception_handler(connect_url=URL_WORKER_APP_BRIDGE, socket_type=zmq.PULL, and_raise=False) as zmq_socket:
+            while not threads.shutting_down:
+                control_payload = zmq_socket.recv_pyobj()
+                if not isinstance(control_payload, dict):
+                    log.info('Malformed event; expecting dictionary.')
+                    continue
+                if 'switch' in control_payload:
+                    log.info(f'Sending payload {control_payload.keys()}...')
+                    try:
+                        pass
+                        #self.bot.send_pyobj(control_payload['sms'])
+                    except ZMQError as e:
+                        log.warn(f'ZMQ error {e!s}', exc_info=True)
+                    log.info(f'Sent payload.')
+                else:
+                    log.warn(f'Unsupported payload with keys {control_payload.keys()}')
+                    BridgeFilter.visit_keys(control_payload)
+        #try_close(self.bot)
+
+
 if __name__ == "__main__":
     # connect to RabbitMQ
     mq_config_server = app_config.get('rabbitmq', 'server_address')
@@ -165,6 +205,14 @@ if __name__ == "__main__":
         mq_server_address=mq_config_server,
         mq_exchange_name=f'{mq_config_exchange}_control',
         mq_topic_filter=f'event.control.{mq_device_topic}',
+        mq_exchange_type='direct')
+    # bridge listener
+    app_bridge = BridgeFilter()
+    mq_listener_bridge = ZMQListener(
+        zmq_url=URL_WORKER_APP_BRIDGE,
+        mq_server_address=mq_config_server,
+        mq_exchange_name=f'{mq_config_exchange}_control',
+        mq_topic_filter='event.trigger.switch',
         mq_exchange_type='direct')
     # process configuration
     adcs = dict()
@@ -254,6 +302,9 @@ if __name__ == "__main__":
     # start relay control
     relay_control.start()
     mq_control_listener.start()
+    app_bridge.start()
+    mq_listener_bridge.start()
+
     samples_processed = 0
 
     input_normal_values = dict(app_config.items('input_normal_values'))
@@ -372,6 +423,8 @@ if __name__ == "__main__":
         message = "Shutting down {}..."
         log.info(message.format('RabbitMQ control'))
         mq_control_listener.stop()
+        log.info(message.format('RabbitMQ bridge'))
+        mq_listener_bridge.stop()
         log.info(message.format('RabbitMQ worker'))
         try:
             mq_connection.close()
