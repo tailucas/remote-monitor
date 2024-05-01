@@ -19,6 +19,7 @@ smbus2 = "^0.4.2"
 abelectronics = {git = "https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git"}
 scikit-build-core = "^0.9.3"
 tailucas-pylib = "^0.3.6"
+pydantic = "^2.7.1"
 
 
 [build-system]
