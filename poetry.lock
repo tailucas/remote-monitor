@@ -996,13 +996,13 @@ test = ["mock", "nose"]
 
 [[package]]
 name = "tailucas-pylib"
-version = "0.3.6"
+version = "0.4.0"
 description = "Common Python utility modules"
 optional = false
 python-versions = "<4.0,>=3.11"
 files = [
-    {file = "tailucas_pylib-0.3.6-py3-none-any.whl", hash = "sha256:c3ea1e9a7872f498c7b80ba7982a8615e3d64b9b821aa7f77515ebe24f79662a"},
-    {file = "tailucas_pylib-0.3.6.tar.gz", hash = "sha256:f3b43d917bc2144a3507bcd26fe099b2daa89da99499b27b7eef37428ead1386"},
+    {file = "tailucas_pylib-0.4.0-py3-none-any.whl", hash = "sha256:982ebe3c6439ed47b6a8dabf82de84bd05717456937cb94e6b6ea5ccdb0cd48c"},
+    {file = "tailucas_pylib-0.4.0.tar.gz", hash = "sha256:ae05aa537ab5c115ba8ca93925ee841224a7aa4f92b1066029786ed560ae53b8"},
 ]
 
 [package.dependencies]
@@ -1011,6 +1011,7 @@ botoflow = ">=0.8,<0.9"
 cronitor = ">=4.7.1,<5.0.0"
 msgpack = ">=1.0.8,<2.0.0"
 pika = ">=1.3.2,<2.0.0"
+pydantic = ">=2.7.1,<3.0.0"
 python-dateutil = ">=2.9.0.post0,<3.0.0"
 pytz = ">=2024.1,<2025.0"
 pyyaml = ">=6.0.1,<7.0.0"
@@ -1049,4 +1050,4 @@ zstd = ["zstandard (>=0.18.0)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "5d5bdb620efdd0941aada5f0095a7d7b813c74422faedd3113cf8b8237c93413"
+content-hash = "08e7d0facc35862a9d0b7281fb93239b1387d89a40f784d038dc63b3bcd84468"

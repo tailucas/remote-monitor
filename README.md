@@ -72,7 +72,7 @@ Here is the list of Balena Fleet variables used by this application:
 * `AWS_CONFIG_FILE`: Standard local location of the AWS configuration file. This project uses `/home/app/.aws/config`. Used previously for some AWS SWF integration but is required for build until I trim this out.
 * `AWS_DEFAULT_REGION`: As above used previously. Set to anything valid like `us-east-1`.
 * `CRONITOR_MONITOR_KEY`: Token to enable additional health checks presented in [Cronitor][cronitor-url]. This tracks thread count and overall health.
-* `OP_CONNECT_SERVER`, `OP_CONNECT_TOKEN`, `OP_CONNECT_VAULT`: Used to specify the URL of the 1Password connect server with associated client token and Vault ID. See [1Password](https://developer.1password.com/docs/connect/get-started#step-1-set-up-a-secrets-automation-workflow) for more.
+* `OP_CONNECT_HOST`, `OP_CONNECT_TOKEN`, `OP_CONNECT_VAULT`: Used to specify the URL of the 1Password connect server with associated client token and Vault ID. See [1Password](https://developer.1password.com/docs/connect/get-started#step-1-set-up-a-secrets-automation-workflow) for more.
 * `HC_PING_URL`: [Healthchecks][healthchecks-url] URL of this application's current health check status.
 * `INPUT_*`, `OUTPUT_*`: Used as label substitutions in the [application configuration](https://github.com/tailucas/remote-monitor/blob/1201986ef3ba2e366c3ced5c1ece879a5379163a/config/app.conf#L39-L98).
 * `RABBITMQ_DEVICE_TOPIC`: Input and output messages to another application for decision making. This project uses `ioboard`.
