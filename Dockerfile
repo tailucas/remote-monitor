@@ -3,6 +3,7 @@ FROM balenalib/raspberry-pi-python:latest-latest-run
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        cmake \
         curl \
         cron \
         dbus \
@@ -15,6 +16,7 @@ RUN apt-get update \
         # cffi for cryptography
         libffi-dev \
         libssl-dev \
+        libzmq3-dev \
         make \
         rsyslog \
         pkg-config \
