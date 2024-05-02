@@ -326,7 +326,7 @@ if __name__ == "__main__":
         last_upload = 0
         device_history = dict()
         while not threads.shutting_down:
-            active_devices = list()
+            triggered_devices = dict()
             output_samples = dict()
             for i in list(input_to_adc.keys()):
                 adc_name, pin = input_to_adc[i]
@@ -357,12 +357,12 @@ if __name__ == "__main__":
                         del device_history[device_key]
                     # nothing else to unset here, next input now
                     continue
-
                 # a device has now gone out of normal range
                 device_event_distinction = device_key
                 output_samples[device_key] = int(normalized_value)
                 input_device = copy.copy(input_devices[i])
                 input_device['sample_value'] = int(normalized_value)
+                input_device['state'] = 'OK'
                 event_detail = None
                 if i in input_tamper_values:
                     tamper_value = int(input_tamper_values[i])
@@ -370,8 +370,7 @@ if __name__ == "__main__":
                         event_detail = tamper_label
                         device_event_distinction = '{} {}'.format(device_key, tamper_label)
                 # now include the event detail
-                if event_detail:
-                    input_device['event_detail'] = event_detail
+                input_device['event_detail'] = event_detail
                 # determine whether the value has changed
                 if device_key in device_history:
                     historic_value, sampled_at, historic_detail = device_history[device_key]
@@ -385,38 +384,31 @@ if __name__ == "__main__":
                         continue
                 # update the device history and treat as active
                 device_history[device_key] = (normalized_value, time.time(), event_detail)
-                # add the input device to the 'active' list
-                active_devices.append(input_device)
+                # set the state to 'active'
+                input_device['state'] = 'triggered'
+                triggered_devices[device_key] = input_device
                 log.info("'{}' (detail: {}, sampled: {})".format(device_event_distinction, event_detail, normalized_value))
-            try:
-                if len(active_devices) > 0:
-                    event_payload = {
-                        'samples': output_samples,
-                        'active_devices': active_devices,
-                        'inputs': active_devices,
-                        'outputs': device_info['outputs']
-                    }
+            # include triggered inputs with configured inputs
+            payload_inputs = list()
+            for device_input in device_info['inputs']:
+                device_key = device_input['device_key']
+                if device_key in triggered_devices:
+                    payload_inputs.append(triggered_devices[device_key])
+                else:
+                    payload_inputs.append(device_input)
+            inactivity = time.time() - last_upload
+            if triggered_devices or inactivity > HEARTBEAT_INTERVAL_SECONDS:
+                try:
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'event.notify.{mq_device_topic}.{device_name}',
-                        body=make_payload(data=event_payload))
-                    last_upload = time.time()
-                else:
-                    inactivity = time.time() - last_upload
-                    if inactivity > HEARTBEAT_INTERVAL_SECONDS:
-                        heartbeat_payload = {
-                            'statistics': {'sample_count': samples_processed},
-                            'device_info': device_info,
-                            'inputs': device_info['inputs'],
+                        routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
+                        body=make_payload(data={
+                            'inputs': payload_inputs,
                             'outputs': device_info['outputs']
-                        }
-                        mq_channel.basic_publish(
-                            exchange=mq_config_exchange,
-                            routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
-                            body=make_payload(data=heartbeat_payload))
-                        last_upload = time.time()
-            except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
-                raise RuntimeWarning() from e
+                        }))
+                    last_upload = time.time()
+                except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
+                    raise RuntimeWarning() from e
             threads.interruptable_sleep.wait(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except(KeyboardInterrupt, RuntimeWarning, ContextTerminated) as e:
