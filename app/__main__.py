@@ -132,9 +132,9 @@ class RelayControl(AppThread):
                     duration = int(device_params)
                 except TypeError:
                     log.error(f'Cannot determine duration from {device_params}')
-                log.debug("Relay event for '{}'".format(device_key))
+                log.info(f'Relay event for {device_key} with duration {duration}')
                 if device_key not in self._output_to_relay:
-                    log.debug("'{}' is not configured for relay control".format(device_key))
+                    log.warn(f'{device_key} does not match any of {self._output_to_relay.keys()}')
                     continue
                 relay = self._output_to_relay[device_key]
                 if relay in self._sockets:
