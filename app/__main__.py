@@ -398,10 +398,13 @@ if __name__ == "__main__":
                     payload_inputs.append(device_input)
             inactivity = time.time() - last_upload
             if triggered_devices or inactivity > HEARTBEAT_INTERVAL_SECONDS:
+                message_type = 'notify'
+                if not triggered_devices:
+                    message_type = 'heartbeat'
                 try:
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'event.heartbeat.{mq_device_topic}.{device_name}',
+                        routing_key=f'event.{message_type}.{mq_device_topic}.{device_name}',
                         body=make_payload(data={
                             'inputs': payload_inputs,
                             'outputs': device_info['outputs']
