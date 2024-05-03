@@ -120,16 +120,18 @@ class RelayControl(AppThread):
         with exception_handler(connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
             while not threads.shutting_down:
                 control_payload = zmq_socket.recv_pyobj()
-                if not isinstance(control_payload, dict):
-                    log.info(f'Malformed event ({control_payload}); expecting dictionary.')
-                    continue
-                RelayControl.visit_keys(control_payload)
-                if 1==1:
-                    continue
-                device_event = None
-                for _,payload in device_event.items():
-                    device_key, duration = payload['data']
-                    break
+                if not isinstance(control_payload, dict) or 'ioboard' not in control_payload or 'output_triggered' not in control_payload['ioboard']:
+                    log.error(f'Malformed event payload {control_payload}.')
+                    RelayControl.visit_keys(control_payload)
+                    return
+                output_trigger = control_payload['ioboard']['output_triggered']
+                device_key = output_trigger['device_key']
+                device_params = output_trigger['device_params']
+                duration = None
+                try:
+                    duration = int(device_params)
+                except TypeError:
+                    log.error(f'Cannot determine duration from {device_params}')
                 log.debug("Relay event for '{}'".format(device_key))
                 if device_key not in self._output_to_relay:
                     log.debug("'{}' is not configured for relay control".format(device_key))
