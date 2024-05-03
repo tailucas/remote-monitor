@@ -176,14 +176,15 @@ if __name__ == "__main__":
     mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
     mq_exchange_type = 'topic'
     mq_channel.exchange_declare(exchange=mq_config_exchange, exchange_type=mq_exchange_type)
-    mq_device_topic = app_config.get('rabbitmq', 'device_topic')
+    mq_device_topic_suffix = app_config.get('rabbitmq', 'device_topic')
+    mq_device_topic = f'event.trigger.{mq_device_topic_suffix}'
     log.info(f'Using RabbitMQ server at {mq_config_server} with {mq_exchange_type} ({mq_device_topic}) exchange {mq_config_exchange}.')
     # control listener
     mq_control_listener = ZMQListener(
         zmq_url=URL_WORKER_RELAY_CTRL,
         mq_server_address=mq_config_server,
         mq_exchange_name=f'{mq_config_exchange}_control',
-        mq_topic_filter=f'event.trigger.{mq_device_topic}',
+        mq_topic_filter=mq_device_topic,
         mq_exchange_type='direct')
     # process configuration
     adcs = dict()
