@@ -60,7 +60,6 @@ SAMPLE_INTERVAL_SECONDS = 0.1
 SAMPLE_DEVIATION_TOLERANCE = 10
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
 URL_WORKER_RELAY = 'inproc://relay-{}'
-URL_WORKER_APP_BRIDGE = 'inproc://app-bridge'
 
 
 class Relay(AppThread):
@@ -107,10 +106,27 @@ class RelayControl(AppThread):
             socket.connect(worker_url)
         self._output_to_relay = dict()
 
+    def visit_keys(dictionary, parent_key=''):
+        for key, value in dictionary.items():
+            full_key = f'{parent_key}.{key}' if parent_key else key
+            if isinstance(value, dict):
+                RelayControl.visit_keys(value, full_key)
+            elif isinstance(value, str) or isinstance(value, int):
+                log.info(f'{full_key}::{value}')
+            else:
+                log.info(f'{full_key}::{type(value)}')
+
     def run(self):
         with exception_handler(connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
             while not threads.shutting_down:
-                device_event = zmq_socket.recv_pyobj()
+                control_payload = zmq_socket.recv_pyobj()
+                if not isinstance(control_payload, dict):
+                    log.info(f'Malformed event ({control_payload}); expecting dictionary.')
+                    continue
+                RelayControl.visit_keys(control_payload)
+                if 1==1:
+                    continue
+                device_event = None
                 for _,payload in device_event.items():
                     device_key, duration = payload['data']
                     break
@@ -146,45 +162,6 @@ class RelayControl(AppThread):
         self._output_to_relay[device_key] = relay
 
 
-class BridgeFilter(AppThread):
-
-    def __init__(self):
-        AppThread.__init__(self, name=self.__class__.__name__)
-        #self.bot = zmq_socket(zmq.PUSH)
-
-    def visit_keys(dictionary, parent_key=''):
-        for key, value in dictionary.items():
-            full_key = f'{parent_key}.{key}' if parent_key else key
-            if isinstance(value, dict):
-                BridgeFilter.visit_keys(value, full_key)
-            elif isinstance(value, str) or isinstance(value, int):
-                log.info(f'{full_key}::{value}')
-            else:
-                log.info(f'{full_key}::{type(value)}')
-
-    # noinspection PyBroadException
-    def run(self):
-        #self.bot.connect(URL_WORKER_TELEGRAM_BOT)
-        with exception_handler(connect_url=URL_WORKER_APP_BRIDGE, socket_type=zmq.PULL, and_raise=False) as zmq_socket:
-            while not threads.shutting_down:
-                control_payload = zmq_socket.recv_pyobj()
-                if not isinstance(control_payload, dict):
-                    log.info('Malformed event; expecting dictionary.')
-                    continue
-                if 'switch' in control_payload:
-                    log.info(f'Sending payload {control_payload.keys()}...')
-                    try:
-                        pass
-                        #self.bot.send_pyobj(control_payload['sms'])
-                    except ZMQError as e:
-                        log.warn(f'ZMQ error {e!s}', exc_info=True)
-                    log.info(f'Sent payload.')
-                else:
-                    log.warn(f'Unsupported payload with keys {control_payload.keys()}')
-                    BridgeFilter.visit_keys(control_payload)
-        #try_close(self.bot)
-
-
 if __name__ == "__main__":
     # connect to RabbitMQ
     mq_config_server = app_config.get('rabbitmq', 'server_address')
@@ -204,15 +181,7 @@ if __name__ == "__main__":
         zmq_url=URL_WORKER_RELAY_CTRL,
         mq_server_address=mq_config_server,
         mq_exchange_name=f'{mq_config_exchange}_control',
-        mq_topic_filter=f'event.control.{mq_device_topic}',
-        mq_exchange_type='direct')
-    # bridge listener
-    app_bridge = BridgeFilter()
-    mq_listener_bridge = ZMQListener(
-        zmq_url=URL_WORKER_APP_BRIDGE,
-        mq_server_address=mq_config_server,
-        mq_exchange_name=f'{mq_config_exchange}_control',
-        mq_topic_filter='event.trigger.switch',
+        mq_topic_filter=f'event.trigger.{mq_device_topic}',
         mq_exchange_type='direct')
     # process configuration
     adcs = dict()
@@ -222,7 +191,7 @@ if __name__ == "__main__":
         adcs[adc] = ADCPi(int(address[0], 16),
                           int(address[1], 16),
                           12)
-
+    # hardware configuration
     ios = dict()
     for io, address in app_config.items('io_address'):
         log.info("Configuring '{}' @ '{}'".format(io, address))
@@ -234,13 +203,13 @@ if __name__ == "__main__":
         io_port.write_port(0, 0x00)
         io_port.write_port(1, 0x00)
         ios[io] = io_port
-
+    # map IO channels to relays
     relay_to_io = dict()
     for relay, address in app_config.items('relay_address'):
         io, pin = tuple(address.split(':'))
         relay_to_io[relay] = (io, int(pin))
         log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
-
+    # map relays to workers
     relay_workers = list()
     relay_to_worker = dict()
     # start relays
@@ -252,7 +221,7 @@ if __name__ == "__main__":
         relay_to_worker[relay_name] = relay.zmq_url
 
     relay_control = RelayControl(relay_mappings=relay_to_worker)
-
+    # map application configuration
     input_types = dict(app_config.items('input_type'))
     # name overrides location name
     input_names = dict(app_config.items('input_name'))
@@ -302,8 +271,6 @@ if __name__ == "__main__":
     # start relay control
     relay_control.start()
     mq_control_listener.start()
-    app_bridge.start()
-    mq_listener_bridge.start()
 
     samples_processed = 0
 
@@ -419,8 +386,6 @@ if __name__ == "__main__":
         message = "Shutting down {}..."
         log.info(message.format('RabbitMQ control'))
         mq_control_listener.stop()
-        log.info(message.format('RabbitMQ bridge'))
-        mq_listener_bridge.stop()
         log.info(message.format('RabbitMQ worker'))
         try:
             mq_connection.close()
