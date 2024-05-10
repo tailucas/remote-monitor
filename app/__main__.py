@@ -374,7 +374,7 @@ if __name__ == "__main__":
                 try:
                     mq_channel.basic_publish(
                         exchange=mq_config_exchange,
-                        routing_key=f'event.{message_type}.{mq_device_topic}.{device_name}',
+                        routing_key=f'event.{message_type}.{mq_device_topic_suffix}.{device_name}',
                         body=make_payload(data={
                             'inputs': payload_inputs,
                             'outputs': device_info['outputs']
