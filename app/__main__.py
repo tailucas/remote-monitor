@@ -21,13 +21,13 @@ from zmq import ContextTerminated, ZMQError
 import os.path
 
 # setup builtins used by pylib init
-builtins.SENTRY_EXTRAS = []
+builtins.SENTRY_EXTRAS = [] # type: ignore
 from . import APP_NAME
 class CredsConfig:
     sentry_dsn: f'opitem:"Sentry" opfield:{APP_NAME}.dsn' = None # type: ignore
     cronitor_token: f'opitem:"cronitor" opfield:.password' = None # type: ignore
 # instantiate class
-builtins.creds_config = CredsConfig()
+builtins.creds_config = CredsConfig() # type: ignore
 
 from tailucas_pylib import app_config, \
     device_name, \
@@ -43,6 +43,7 @@ from tailucas_pylib.app import AppThread
 from tailucas_pylib.zmq import zmq_term, zmq_socket
 from tailucas_pylib.handler import exception_handler
 
+from typing import Dict
 
 # Reduce Sentry noise from pika loggers
 ignore_logger('pika.adapters.base_connection')
@@ -59,62 +60,40 @@ RELAY_DEFAULT_ACTIVE_TIME_SECONDS = 1
 SAMPLE_INTERVAL_SECONDS = 0.1
 SAMPLE_DEVIATION_TOLERANCE = 10
 URL_WORKER_RELAY_CTRL = 'inproc://relay-ctrl'
-URL_WORKER_RELAY = 'inproc://relay-{}'
 
 
-class Relay(AppThread):
+class Relay(object):
 
-    def __init__(self, relay_name, io, pin):
+    def __init__(self, relay_name: str, io: IOPi, pin: int):
         self._name = relay_name
-        AppThread.__init__(self, name=f'{self.__class__.__name__}::{relay_name}')
-        self._zmq_url = URL_WORKER_RELAY.format(relay_name)
-
         self._io = io
         self._pin = pin
 
-    @property
-    def zmq_url(self):
-        return self._zmq_url
+    def trigger(self, duration: float=RELAY_DEFAULT_ACTIVE_TIME_SECONDS):
+        try:
+            log.info("Activating {} for {} seconds.".format(self._name, duration))
+            self._io.write_pin(self._pin, 1)
+            # FIXME: will hang up calling thread
+            # future implementation using a ZMQ thread would be to
+            # serialize all mutations on I/O but track "future" pin
+            # deactivations using some kind of ZMQ poller strategy to
+            # process deactivations in between legitimate mutation events.
+            # Given that the controller would need access to all underlying IOPi
+            # instances, RelayControl would probably need only the mappings between
+            # device key and associated relay as explicitly defined in config.
+            sleep(float(duration))
+        finally:
+            self._io.write_pin(self._pin, 0)
 
-    def run(self):
-        with exception_handler(connect_url=self._zmq_url, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
-            while not threads.shutting_down:
-                relay_ctrl = zmq_socket.recv_pyobj()
-                if 'state' in relay_ctrl:
-                    if relay_ctrl['state'] is True:
-                        self._io.write_pin(self._pin, 1)
-                        # sleep
-                        if 'duration' in relay_ctrl:
-                            duration = relay_ctrl['duration']
-                        else:
-                            duration = RELAY_DEFAULT_ACTIVE_TIME_SECONDS
-                        log.info("Activating {} for {} seconds.".format(self._name, duration))
-                        self._io.write_pin(self._pin, 1)
-                        sleep(float(duration))
-                    self._io.write_pin(self._pin, 0)
+    def __str__(self):
+        return self._name
 
 
 class RelayControl(AppThread):
 
-    def __init__(self, relay_mappings):
+    def __init__(self, relay_mappings: Dict[str, Relay]):
         AppThread.__init__(self, name=self.__class__.__name__)
-        # Push socket to control relays
-        self._sockets = dict()
-        for relay, worker_url in list(relay_mappings.items()):
-            socket = zmq_socket(zmq.PUSH)
-            self._sockets[relay] = socket
-            socket.connect(worker_url)
-        self._output_to_relay = dict()
-
-    def visit_keys(dictionary, parent_key=''):
-        for key, value in dictionary.items():
-            full_key = f'{parent_key}.{key}' if parent_key else key
-            if isinstance(value, dict):
-                RelayControl.visit_keys(value, full_key)
-            elif isinstance(value, str) or isinstance(value, int):
-                log.info(f'{full_key}::{value}')
-            else:
-                log.info(f'{full_key}::{type(value)}')
+        self._relay_mappings = relay_mappings
 
     def run(self):
         with exception_handler(connect_url=URL_WORKER_RELAY_CTRL, socket_type=zmq.PULL, and_raise=False, shutdown_on_error=True) as zmq_socket:
@@ -122,7 +101,6 @@ class RelayControl(AppThread):
                 control_payload = zmq_socket.recv_pyobj()
                 if not isinstance(control_payload, dict) or 'ioboard' not in control_payload or 'output_triggered' not in control_payload['ioboard']:
                     log.error(f'Malformed event payload {control_payload}.')
-                    RelayControl.visit_keys(control_payload)
                     return
                 output_trigger = control_payload['ioboard']['output_triggered']
                 device_key = output_trigger['device_key']
@@ -133,35 +111,16 @@ class RelayControl(AppThread):
                 except TypeError:
                     log.warn(f'Cannot determine duration from {device_params}, using default of {RELAY_DEFAULT_ACTIVE_TIME_SECONDS}s.')
                 log.info(f'Relay event for {device_key} with duration {duration}')
-                if device_key not in self._output_to_relay:
-                    log.warn(f'{device_key} does not match any of {self._output_to_relay.keys()}')
-                    continue
-                relay = self._output_to_relay[device_key]
-                if relay in self._sockets:
-                    log.info("'{}' => '{}'".format(device_key, relay))
-                    relay_cmd = {
-                        'state': True
-                    }
-                    if duration:
-                        relay_cmd['duration'] = duration
-                    self._sockets[relay].send_pyobj(relay_cmd)
-                else:
-                    log.error("'{}' refers to non-existent relay '{}'".format(device_key, relay))
+                if device_key not in self._relay_mappings:
+                    log.error(f'{device_key} does not match any of {self._relay_mappings.keys()}')
                     post_count_metric('Errors')
-        for relay, socket in self._sockets.items():
-            log.info(f'Closing ZMQ socket for {relay}...')
-            try:
-                socket.close()
-            except:
-                pass
-
-    def add_output(self, device_key, relay):
-        if device_key in self._output_to_relay:
-            raise RuntimeError('{} is already associated with {}. Cannot also associate {}.'.format(
-                device_key,
-                self._output_to_relay[device_key],
-                relay))
-        self._output_to_relay[device_key] = relay
+                    continue
+                relay = self._relay_mappings[device_key]
+                log.info(f'{device_key} => {relay!s}')
+                if duration:
+                    relay.trigger(duration=duration)
+                else:
+                    relay.trigger()
 
 
 if __name__ == "__main__":
@@ -170,7 +129,7 @@ if __name__ == "__main__":
     try:
         mq_connection = pika.BlockingConnection(pika.ConnectionParameters(host=mq_config_server))
     except AMQPConnectionError:
-        log.warning('RabbitMQ failure at startup.', exc_info=1)
+        log.warning('RabbitMQ failure at startup.', exc_info=True)
         exit(1)
     mq_channel = mq_connection.channel()
     mq_config_exchange = app_config.get('rabbitmq', 'mq_exchange')
@@ -187,17 +146,17 @@ if __name__ == "__main__":
         mq_topic_filter=mq_device_topic,
         mq_exchange_type='direct')
     # process configuration
-    adcs = dict()
+    adcs: Dict[str, ADCPi] = dict()
     for adc, address in app_config.items('adc_address'):
-        log.info("Configuring '{}' @ '{}'".format(adc, address))
+        log.info(f'Configuring ADC {adc} @ {address}')
         address = address.split(',')
         adcs[adc] = ADCPi(int(address[0], 16),
                           int(address[1], 16),
                           12)
     # hardware configuration
-    ios = dict()
+    ios: Dict[str, IOPi] = dict()
     for io, address in app_config.items('io_address'):
-        log.info("Configuring '{}' @ '{}'".format(io, address))
+        log.info(f'Configuring I/O {io} @ {address}')
         io_port = IOPi(int(address, 16))
         # set port direction to output
         io_port.set_port_direction(0, 0x00)
@@ -207,23 +166,19 @@ if __name__ == "__main__":
         io_port.write_port(1, 0x00)
         ios[io] = io_port
     # map IO channels to relays
-    relay_to_io = dict()
-    for relay, address in app_config.items('relay_address'):
+    relay_to_io: Dict[str, tuple[str, int]] = dict()
+    for relay_name, address in app_config.items('relay_address'):
         io, pin = tuple(address.split(':'))
-        relay_to_io[relay] = (io, int(pin))
-        log.info("Mapped '{}' to IO '{}' on pin {}".format(relay, io, pin))
+        relay_to_io[relay_name] = (io, int(pin))
+        log.info(f'Mapped {relay_name} to IO {io} on pin {pin}')
     # map relays to workers
-    relay_workers = list()
-    relay_to_worker = dict()
+    relays: Dict[str, Relay] = dict()
     # start relays
     for relay_name in list(relay_to_io.keys()):
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
-        relay.start()
-        relay_workers.append(relay)
-        relay_to_worker[relay_name] = relay.zmq_url
-
-    relay_control = RelayControl(relay_mappings=relay_to_worker)
+        relays[relay_name] = relay
+        log.info(f'Mapped relay {relay_name} to IO {ios[io]} on pin {pin}')
     # map application configuration
     input_types = dict(app_config.items('input_type'))
     # name overrides location name
@@ -248,6 +203,7 @@ if __name__ == "__main__":
         device_info['inputs'].append(device_description)
         input_devices[field] = device_description
     device_info['outputs'] = list()
+    device_to_relay: Dict[str, Relay] = dict()
     for field, output_type in list(output_types.items()):
         output_location = output_locations[field]
         device_key = '{} {}'.format(output_location, output_type)
@@ -257,21 +213,19 @@ if __name__ == "__main__":
             'device_key': device_key
         })
         if app_config.has_option('output_relay', field):
-            relay = app_config.get('output_relay', field)
-            log.info("'{}' will trigger '{}'".format(device_key, relay))
-            relay_control.add_output(
-                device_key=device_key,
-                relay=relay)
-
+            relay_name = app_config.get('output_relay', field)
+            device_to_relay[device_key] = relays[relay_name]
+            log.info(f'{device_key} will trigger {relay_name}')
     input_addresses = dict(app_config.items('input_address'))
     input_to_adc = dict()
     for field in input_addresses:
         adc, pin = tuple(input_addresses[field].split(':'))
         input_to_adc[field] = (adc, int(pin))
         # get the normal value
-        log.info("ADC {} pin {} will detect '{}'".format(adc, pin, input_devices[field]['device_key']))
-
+        device_key = input_devices[field]['device_key']
+        log.info(f'ADC {adc} pin {pin} will detect {device_key}')
     # start relay control
+    relay_control = RelayControl(relay_mappings=device_to_relay)
     relay_control.start()
     mq_control_listener.start()
 
@@ -303,7 +257,7 @@ if __name__ == "__main__":
                 try:
                     sampled_value = adcs[adc_name].read_voltage(pin)
                 except TimeoutError:
-                    log.warning('Timeout reading value from {} on pin {}.'.format(adc_name, pin), exc_info=1)
+                    log.warning('Timeout reading value from {} on pin {}.'.format(adc_name, pin), exc_info=True)
                     threads.interruptable_sleep.wait(1)
                     continue
                 normalized_value = (sampled_value / ADC_SAMPLE_MAX) * 100
@@ -378,7 +332,7 @@ if __name__ == "__main__":
                         body=make_payload(data={
                             'inputs': payload_inputs,
                             'outputs': device_info['outputs']
-                        }))
+                        })) # type: ignore
                     last_upload = time.time()
                 except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
                     raise RuntimeWarning() from e
