@@ -32,8 +32,7 @@ if [ -n "${RSYSLOG_SERVER:-}" ]; then
 \$ActionResumeRetryCount -1
 \$template MyTemplate, "<%pri%> %timestamp% ${RESIN_DEVICE_NAME_AT_INIT} %syslogtag% %msg%\n"
 \$ActionForwardDefaultTemplate MyTemplate
-*.*;cron.none @${RSYSLOG_SERVER}${RSYSLOG_TEMPLATE:-}
-cron.* -/var/log/cron.log
+*.*;auth,authpriv.none,cron.none	@${RSYSLOG_SERVER}${RSYSLOG_TEMPLATE:-}
 EOF
 fi
 # application configuration (no tee for secrets)
