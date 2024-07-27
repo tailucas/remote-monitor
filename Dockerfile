@@ -18,6 +18,7 @@ RUN apt-get update \
         libssl-dev \
         libzmq3-dev \
         make \
+        netcat \
         rsyslog \
         pkg-config \
         # provides uptime
