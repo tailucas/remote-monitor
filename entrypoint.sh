@@ -8,6 +8,10 @@ while [ -n "${NO_START:-}" ]; do
   sleep 3600
 done
 
+if [ -n "${TEST_ON_START_ADDRESS:-}" ]; then
+  nc -zvw2 "${TEST_ON_START_ADDRESS}" "${TEST_ON_START_PORT:-80}"
+fi
+
 set -x
 
 # cron
