@@ -1,5 +1,0 @@
-pika
-pyzmq
-RPi.GPIO
-sentry-sdk
-smbus2

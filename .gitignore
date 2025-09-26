@@ -2,3 +2,6 @@ client_secrets.json
 .idea/
 .balena-app
 .vscode/
+.env
+.venv/
+.balena/qemu-execve

@@ -1,0 +1,59 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  USER_ID: 999
+  GROUP_ID: 999
+
+tasks:
+  default:
+    cmds:
+      - task: configure
+  datadir:
+    desc: Create system user and associate with docker group.
+    cmds:
+      - mkdir -p ./data/
+      - sudo chown {{.USER_ID}}:{{.GROUP_ID}} ./data/
+      - sudo chmod 755 ./data/
+      - sudo chmod g+rws ./data/
+      - sudo rm -f ./data/app-std* ./data/cron-std* ./data/supervisor.sock
+    generates:
+      - ./data/
+  build:
+    desc: Clean up volume directory and build container image.
+    preconditions:
+      - docker compose version
+    cmds:
+      - docker compose --env-file base.env build --progress plain
+  configure:
+    desc: Create runtime configuration.
+    deps: [build]
+    preconditions:
+      - docker -v
+      - docker compose version
+    cmds:
+      - rm -f .env
+      - cp base.env .env
+      - echo "" >> .env
+      - docker compose run --remove-orphans app /opt/app/dot_env_setup.sh >> .env
+    generates:
+      - .env
+  run:
+    desc: Run docker container
+    deps: [datadir, build, configure]
+    preconditions:
+      - docker -v
+      - docker compose version
+      - test -d ./data/
+    cmds:
+      - docker compose up --remove-orphans
+  rund:
+    desc: Run docker container and detach
+    deps: [datadir, build, configure]
+    preconditions:
+      - docker -v
+      - docker compose version
+      - test -d ./data/
+    cmds:
+      - docker compose up -d --remove-orphans

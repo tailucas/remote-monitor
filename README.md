@@ -23,7 +23,6 @@ Technologies that help make this project useful:
 [![1Password][1p-shield]][1p-url]
 [![RabbitMQ][rabbit-shield]][rabbit-url]
 [![Raspberry Pi][rpi-shield]][rpi-url]
-[![Poetry][poetry-shield]][poetry-url]
 [![Python][python-shield]][python-url]
 [![Sentry][sentry-shield]][sentry-url]
 [![ZeroMQ][zmq-shield]][zmq-url]
@@ -42,7 +41,7 @@ Here is some detail about the intended use of this package.
 
 ### Prerequisites
 
-Beyond the Python dependencies defined in the [Poetry configuration](pyproject.toml), the package init carries hardcoded dependencies on [Sentry][sentry-url] and [1Password][1p-url] in order to function in order to function. Unless you want these you're likely better off forking this package and cutting out what you do not need.
+Beyond the Python dependencies defined in the [configuration](pyproject.toml), the package init carries hardcoded dependencies on [Sentry][sentry-url] and [1Password][1p-url] in order to function in order to function. Unless you want these you're likely better off forking this package and cutting out what you do not need.
 
 This project is structured as is for use with [Balena Cloud](https://www.balena.io/cloud/) and requires the Fleet *service variables* listed below to be set in order for the application to start properly.
 
@@ -78,7 +77,6 @@ Here is the list of Balena Fleet variables used by this application:
 * `RABBITMQ_DEVICE_TOPIC`: Input and output messages to another application for decision making. This project uses `ioboard`.
 * `RABBITMQ_EXCHANGE`: RabbitMQ has a configured exchange on which topics are registered. This project uses `home_automation`.
 * `RABBITMQ_SERVER_ADDRESS`: IP address of the RabbitMQ server.
-* `RSYSLOG_SERVER`: IP address of the desired rsyslog server.
 
 With these configured, you are now able to build the application.
 
@@ -155,8 +153,6 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 [1p-shield]: https://img.shields.io/static/v1?style=for-the-badge&message=1Password&color=0094F5&logo=1Password&logoColor=FFFFFF&label=
 [cronitor-url]: https://cronitor.io/
 [healthchecks-url]: https://healthchecks.io/
-[poetry-url]: https://python-poetry.org/
-[poetry-shield]: https://img.shields.io/static/v1?style=for-the-badge&message=Poetry&color=60A5FA&logo=Poetry&logoColor=FFFFFF&label=
 [python-url]: https://www.python.org/
 [python-shield]: https://img.shields.io/static/v1?style=for-the-badge&message=Python&color=3776AB&logo=Python&logoColor=FFFFFF&label=
 [rabbit-url]: https://www.rabbitmq.com/

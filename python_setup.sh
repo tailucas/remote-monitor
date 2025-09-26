@@ -2,11 +2,13 @@
 set -u
 
 # system updates
-if ! poetry --version; then
-  curl -sSL https://install.python-poetry.org | python - || cat /opt/app/poetry-installer-error-*
+if ! uv --version; then
+  curl -LsSf https://astral.sh/uv/install.sh | sh
 else
-  poetry self update
+  uv self update
 fi
-poetry install --no-interaction
-poetry show --tree
-poetry run python -c "import platform;import sys;print(f'{sys.version} on {platform.platform()} {platform.uname()}')"
+
+set -e
+uv sync
+uv tree
+uv run python -c "import platform;import sys;print(f'{sys.version} on {platform.platform()} {platform.uname()}')"

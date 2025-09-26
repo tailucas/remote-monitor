@@ -1,28 +1,35 @@
-[tool.poetry]
+[project]
 name = "app"
 version = "0.1.0"
-description = ""
-authors = ["Tai Lucas <tglucas@gmail.com>"]
-license = "MIT"
+description = "Remote monitor"
 readme = "README.md"
-
-[tool.poetry.scripts]
-app = "app.__main__:main"
-
-[tool.poetry.dependencies]
-python = "^3.11"
-pika = "^1.3.1"
-pyzmq = "^26.0.2"
-rpi-gpio = "^0.7.1"
-sentry-sdk = "^2.0.1"
-smbus2 = "^0.4.2"
-abelectronics = {git = "https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git"}
-scikit-build-core = "^0.9.3"
-tailucas-pylib = "^0.4.0"
-pydantic = "^2.7.1"
-onepasswordconnectsdk = "^1.5.1"
-
+license-files = ["LICENSE"]
+authors = [
+    { name = "Tai Lucas", email = "tglucas@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "abelectronics",
+    "pika>=1.3.2",
+    "rpi-gpio>=0.7.1",
+    "sentry-sdk>=2.38.0",
+    "smbus2>=0.5.0",
+    "tailucas-pylib>=0.5.6",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.8.14,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "app"
+module-root = ""
+
+[tool.uv.sources]
+abelectronics = { git = "https://github.com/abelectronicsuk/ABElectronics_Python_Libraries.git" }
+
+[project.scripts]
+aws_configure = "tailucas_pylib.tools.aws_configure:main"
+config_interpol = "tailucas_pylib.tools.config_interpol:main"
+cred_tool = "tailucas_pylib.tools.cred_tool:main"
+yaml_interpol = "tailucas_pylib.tools.yaml_interpol:main"

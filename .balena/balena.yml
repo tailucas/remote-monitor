@@ -1,0 +1,6 @@
+build-variables:
+    global:
+        - LANG=en_ZA.UTF-8
+        - LANGUAGE=en_ZA
+        - LC_ALL=en_ZA.UTF-8
+        - ENCODING=UTF-8
