@@ -9,6 +9,6 @@ else
 fi
 
 set -e
-uv sync
+uv sync --no-dev
 uv tree
 uv run python -c "import platform;import sys;print(f'{sys.version} on {platform.platform()} {platform.uname()}')"

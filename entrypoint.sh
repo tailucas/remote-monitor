@@ -61,7 +61,7 @@ fi
 /usr/sbin/rsyslogd
 
 # application configuration (no tee for secrets)
-uv run config_interpol < /opt/app/config/app.conf > /opt/app/app.conf
+uv run --frozen --no-sync config_interpol < /opt/app/config/app.conf > /opt/app/app.conf
 # service configuration
 cp /opt/app/config/supervisord.conf /opt/app/supervisord.conf
 

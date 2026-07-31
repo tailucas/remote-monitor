@@ -126,8 +126,9 @@ Optional services:
 Install these tools before setting up the project:
 
 * **`balena-cli`**: Balena deployment tool - https://docs.balena.io/reference/balena-cli/
-* **`docker`** and **`docker-compose`**: Container runtime - https://docs.docker.com/engine/install/
-* **`task`**: Build orchestration - https://taskfile.dev/installation/#install-script
+* **`docker`**: Container runtime, required by the Dev Container CLI - https://docs.docker.com/engine/install/
+* **`devcontainer`**: Dev Container CLI for the development environment - https://code.visualstudio.com/docs/devcontainers/devcontainer-cli
+* **`make`**: Development environment orchestration (GNU Make) - https://www.gnu.org/software/make/
 * **`uv`**: Python package manager - https://docs.astral.sh/uv/getting-started/installation/
 
 ### Installation
@@ -194,28 +195,27 @@ balena push <FLEET_ID>
 
 The device will automatically download and start the new image. Monitor progress in the Balena Cloud dashboard.
 
-For local development (requires Docker):
+For local development, use the VS Code dev container (requires Docker and the Dev Container CLI):
 
 ```bash
-task build      # Build Docker image locally
-task configure  # Generate .env from 1Password secrets
-task run        # Run container in foreground
-task rund       # Run container detached
+make dev        # Build the dev container and open a shell in it
+make python     # Inside the container: create/sync the Python environment
 ```
+
+Note that the application itself is not run locally — it targets the I2C/GPIO hardware of the Balena device, and its configuration is supplied via Balena Fleet variables. All builds and deployments are Balena-driven (see Step 4 above and [Deployment Patterns](#deployment-patterns)).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 ## Build System
 
-### Task CLI (Taskfile.yml)
+### Makefile
 
-Primary build orchestration:
+The [Makefile](Makefile) orchestrates the development environment only. The authoritative build is the Balena server-side cross-compilation of the [Dockerfile](Dockerfile), triggered by `balena push <FLEET_ID>` or `git push` to the Balena remote (see [Deployment Patterns](#deployment-patterns)). Run `make` (or `make help`) to list all targets:
 
-- `task build` - Build Docker image with all dependencies and application code
-- `task run` - Run container in foreground with full log output
-- `task rund` - Run container detached (persists after terminal close)
-- `task configure` - Generate .env configuration from 1Password secrets
-- `task datadir` - Create data directory with proper permissions (UID/GID 999)
+- `make dev` - Build the dev container and open a shell in it (host only)
+- `make dev-build` / `make dev-up` - Build or start the dev container individually
+- `make python` - Create or re-sync the Python virtual environment with uv (inside the dev container)
+- `make check` - Verify required host tools; refuses to run inside the dev container
 
 ### Dockerfile
 

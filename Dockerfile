@@ -90,8 +90,7 @@ WORKDIR /opt/app
 COPY app/ ./app
 COPY config/ ./config
 # user scripts
-COPY dot_env_setup.sh \
-    entrypoint.sh \
+COPY entrypoint.sh \
     healthchecks_heartbeat.sh \
     python_setup.sh \
     rust_setup.sh \
@@ -107,6 +106,8 @@ RUN chown app:app /opt/app/uv.lock
 ENV HOME=/home/app
 # install rust for cryptography wheel builds
 ENV PATH="${PATH}:${HOME}/.local/bin:${HOME}/.cargo/bin"
+# production image: uv installs main dependencies only (ignore default dependency groups)
+ENV UV_NO_DEFAULT_GROUPS=1
 RUN /opt/app/rust_setup.sh
 RUN /opt/app/python_setup.sh
 RUN chown -R app:app /home/app/.cache/uv/
