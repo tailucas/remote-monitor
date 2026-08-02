@@ -37,7 +37,7 @@ requires-dist = [
     { name = "rpi-gpio", specifier = ">=0.7.1" },
     { name = "sentry-sdk", specifier = ">=2.38.0" },
     { name = "smbus2", specifier = ">=0.5.0" },
-    { name = "tailucas-pylib", extras = ["monitoring", "mq"], specifier = ">=0.7.4" },
+    { name = "tailucas-pylib", extras = ["monitoring", "mq"], specifier = ">=0.7.7" },
 ]
 
 [package.metadata.requires-dev]
@@ -477,6 +477,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-json-logger"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/ff/3cc9165fd44106973cd7ac9facb674a65ed853494592541d339bdc9a30eb/python_json_logger-4.1.0.tar.gz", hash = "sha256:b396b9e3ed782b09ff9d6e4f1683d46c83ad0d35d2e407c09a9ebbf038f88195", size = 17573, upload-time = "2026-03-29T04:39:56.805Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/be/0631a861af4d1c875f096c07d34e9a63639560a717130e7a87cbc82b7e3f/python_json_logger-4.1.0-py3-none-any.whl", hash = "sha256:132994765cf75bf44554be9aa49b06ef2345d23661a96720262716438141b6b2", size = 15021, upload-time = "2026-03-29T04:39:55.266Z" },
+]
+
+[[package]]
 name = "pytz"
 version = "2026.3.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -741,16 +750,17 @@ wheels = [
 
 [[package]]
 name = "tailucas-pylib"
-version = "0.7.4"
+version = "0.7.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "python-dateutil" },
+    { name = "python-json-logger" },
     { name = "pytz" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/c6/8a70b15048572af98a02343b30c3a45b24d3db2d66fa8c69a7ca2a2aac57/tailucas_pylib-0.7.4.tar.gz", hash = "sha256:4749b05a673ec32730846b2339aba5d6147c5115e14efffcabba25abedda71f7", size = 21647, upload-time = "2026-07-31T06:05:58.334Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/8c/12a14b378327aec3dec19799ea94ada57915bd29910a49c15d010db2dce3/tailucas_pylib-0.7.7.tar.gz", hash = "sha256:229afec99014a5c48165aeeeabd3c25a5b9e9d48d3bfb04db968397fe5e9016e", size = 21718, upload-time = "2026-08-02T15:11:06.27Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b9/29/a16527f13e92a2e5f0a63ec653863659c27590d6804c72f33d2c79963ae2/tailucas_pylib-0.7.4-py3-none-any.whl", hash = "sha256:2a659d8daca989099fbc4d42b1832da0e2e6bc4cdb2ad20c4bd9b4d9f9dedd6a", size = 27597, upload-time = "2026-07-31T06:05:56.854Z" },
+    { url = "https://files.pythonhosted.org/packages/06/e0/85196f5ca348b80870e93048a2f848ea717f1e6861c5b9cb1edd6ca8a9d3/tailucas_pylib-0.7.7-py3-none-any.whl", hash = "sha256:5a279c7fe19e7d7122d18f25eb879bd3eab49ee56d0e1ad997a7e1537c0008e5", size = 27617, upload-time = "2026-08-02T15:11:04.605Z" },
 ]
 
 [package.optional-dependencies]
