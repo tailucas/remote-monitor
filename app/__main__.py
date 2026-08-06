@@ -61,7 +61,10 @@ class Relay:
 
     def trigger(self, duration: float = RELAY_DEFAULT_ACTIVE_TIME_SECONDS) -> None:
         try:
-            log.info(f"Activating {self._name} for {duration} seconds.")
+            log.info(
+                "Activating relay",
+                extra={"relay_name": self._name, "duration_secs": duration},
+            )
             self._io.write_pin(self._pin, 1)
             # FIXME: will hang up calling thread
             # future implementation using a ZMQ thread would be to
@@ -98,7 +101,10 @@ class RelayControl(AppThread):  # type: ignore[misc]
                     or "ioboard" not in control_payload
                     or "output_triggered" not in control_payload["ioboard"]
                 ):
-                    log.error(f"Malformed event payload {control_payload}.")
+                    log.error(
+                        "Malformed event payload",
+                        extra={"control_payload": control_payload},
+                    )
                     return
                 output_trigger = control_payload["ioboard"]["output_triggered"]
                 device_key = output_trigger["device_key"]
@@ -108,19 +114,30 @@ class RelayControl(AppThread):  # type: ignore[misc]
                     duration = float(device_params)
                 except TypeError:
                     log.warning(
-                        f"Cannot determine duration from {device_params}, "
-                        f"using default of "
-                        f"{RELAY_DEFAULT_ACTIVE_TIME_SECONDS}s."
+                        "Cannot determine duration from device params. Using default",
+                        extra={
+                            "device_params": device_params,
+                            "default_duration_secs": RELAY_DEFAULT_ACTIVE_TIME_SECONDS,
+                        },
                     )
-                log.info(f"Relay event for {device_key} with duration {duration}")
+                log.info(
+                    "Relay event",
+                    extra={"device_key": device_key, "duration_secs": duration},
+                )
                 if device_key not in self._relay_mappings:
                     log.error(
-                        f"{device_key} does not match any of "
-                        f"{self._relay_mappings.keys()}"
+                        "Device key does not match any relay mapping",
+                        extra={
+                            "device_key": device_key,
+                            "relay_mappings": list(self._relay_mappings.keys()),
+                        },
                     )
                     continue
                 relay = self._relay_mappings[device_key]
-                log.info(f"{device_key} => {relay!s}")
+                log.debug(
+                    "Device key mapped to relay",
+                    extra={"device_key": device_key, "relay": str(relay)},
+                )
                 if duration:
                     relay.trigger(duration=duration)
                 else:
@@ -131,6 +148,7 @@ def main() -> None:
     try:
         sentry_sdk.init(
             dsn=app_config.get("creds", "sentry_dsn"),
+            enable_logs=True,
             integrations=[
                 AsyncioIntegration(),
                 SysExitIntegration(capture_successful_exits=True),
@@ -158,9 +176,13 @@ def main() -> None:
     mq_device_topic_suffix = app_config.get("rabbitmq", "device_topic")
     mq_device_topic = f"event.trigger.{mq_device_topic_suffix}"
     log.info(
-        f"Using RabbitMQ server at {mq_config_server} with "
-        f"{mq_exchange_type} ({mq_device_topic}) "
-        f"exchange {mq_config_exchange}."
+        "Using RabbitMQ server",
+        extra={
+            "server_address": mq_config_server,
+            "exchange_type": mq_exchange_type,
+            "device_topic": mq_device_topic,
+            "exchange_name": mq_config_exchange,
+        },
     )
     # control listener
     mq_control_listener = ZMQListener(
@@ -173,13 +195,13 @@ def main() -> None:
     # process configuration
     adcs: dict[str, ADCPi] = {}
     for adc, address in app_config.items("adc_address"):
-        log.info(f"Configuring ADC {adc} @ {address}")
+        log.info("Configuring ADC", extra={"adc": adc, "address": address})
         address = address.split(",")
         adcs[adc] = ADCPi(int(address[0], 16), int(address[1], 16), 12)
     # hardware configuration
     ios: dict[str, IOPi] = {}
     for io, address in app_config.items("io_address"):
-        log.info(f"Configuring I/O {io} @ {address}")
+        log.info("Configuring I/O", extra={"io": io, "address": address})
         io_port = IOPi(int(address, 16))
         # set port direction to output
         io_port.set_port_direction(0, 0x00)
@@ -193,7 +215,10 @@ def main() -> None:
     for relay_name, address in app_config.items("relay_address"):
         io, pin = tuple(address.split(":"))
         relay_to_io[relay_name] = (io, int(pin))
-        log.info(f"Mapped {relay_name} to IO {io} on pin {pin}")
+        log.info(
+            "Mapped relay to IO",
+            extra={"relay_name": relay_name, "io": io, "pin": pin},
+        )
     # map relays to workers
     relays: dict[str, Relay] = {}
     # start relays
@@ -201,7 +226,10 @@ def main() -> None:
         io, pin = relay_to_io[relay_name]
         relay = Relay(relay_name=relay_name, io=ios[io], pin=pin)
         relays[relay_name] = relay
-        log.info(f"Mapped relay {relay_name} to IO {ios[io]} on pin {pin}")
+        log.info(
+            "Mapped relay instance to IO",
+            extra={"relay_name": relay_name, "io": str(ios[io]), "pin": pin},
+        )
     # map application configuration
     input_types = dict(app_config.items("input_type"))
     # name overrides location name
@@ -236,7 +264,10 @@ def main() -> None:
         if app_config.has_option("output_relay", field):
             relay_name = app_config.get("output_relay", field)
             device_to_relay[device_key] = relays[relay_name]
-            log.info(f"{device_key} will trigger {relay_name}")
+            log.info(
+                "Device will trigger relay",
+                extra={"device_key": device_key, "relay_name": relay_name},
+            )
     input_addresses = dict(app_config.items("input_address"))
     input_to_adc: dict[str, tuple[str, int]] = {}
     for field in input_addresses:
@@ -244,7 +275,10 @@ def main() -> None:
         input_to_adc[field] = (adc, int(pin))
         # get the normal value
         device_key = input_devices[field]["device_key"]
-        log.info(f"ADC {adc} pin {pin} will detect {device_key}")
+        log.info(
+            "ADC pin will detect device",
+            extra={"adc": adc, "pin": pin, "device_key": device_key},
+        )
     # start relay control
     relay_control = RelayControl(relay_mappings=device_to_relay)
     relay_control.start()
@@ -270,8 +304,8 @@ def main() -> None:
         env_vars = list(os.environ)
         env_vars.sort()
         log.info(
-            f"Startup complete with {len(env_vars)} "
-            f"environment variables visible: {env_vars}."
+            "Startup complete",
+            extra={"env_var_count": len(env_vars), "env_vars": env_vars},
         )
         last_upload = 0.0
         device_history: dict[str, tuple[float, float, str | None]] = {}
@@ -284,8 +318,9 @@ def main() -> None:
                     sampled_value = adcs[adc_name].read_voltage(pin)
                 except ADCTimeoutError:
                     log.warning(
-                        f"Timeout reading value from {adc_name} on pin {pin}.",
+                        "Timeout reading value from ADC",
                         exc_info=True,
+                        extra={"adc_name": adc_name, "pin": pin},
                     )
                     interruptable_sleep.wait(1)
                     continue
@@ -295,14 +330,24 @@ def main() -> None:
                 samples_processed += 1
                 if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                     log.debug(
-                        f"Comparing {adc_name}.{pin}={normalized_value} "
-                        f"({sampled_value}v) to {input_value} ({device_key}) "
-                        f"(tolerance: {SAMPLE_DEVIATION_TOLERANCE})"
+                        "Comparing ADC sample to normal value",
+                        extra={
+                            "adc_name": adc_name,
+                            "pin": pin,
+                            "normalized_value": normalized_value,
+                            "sampled_value_v": sampled_value,
+                            "input_value": input_value,
+                            "device_key": device_key,
+                            "tolerance": SAMPLE_DEVIATION_TOLERANCE,
+                        },
                     )
                 if abs(normalized_value - input_value) <= SAMPLE_DEVIATION_TOLERANCE:
                     # forget that this device was active
                     if device_key in device_history:
-                        log.debug(f"'{device_key}' is no longer active.")
+                        log.debug(
+                            "Device is no longer active",
+                            extra={"device_key": device_key},
+                        )
                         del device_history[device_key]
                     # nothing else to unset here, next input now
                     continue
@@ -337,9 +382,12 @@ def main() -> None:
                         # sample to avoid log spam
                         if randint(0, 1000) < SAMPLE_INTERVAL_SECONDS * 1000:
                             log.debug(
-                                f"Debouncing '{device_event_distinction}' "
-                                f"(detail: {event_detail}) activated "
-                                f"{int(time.time() - sampled_at)} seconds ago."
+                                "Debouncing device event",
+                                extra={
+                                    "event_distinction": device_event_distinction,
+                                    "event_detail": event_detail,
+                                    "active_secs_ago": int(time.time() - sampled_at),
+                                },
                             )
                         continue
                 # update the device history and treat as active
@@ -352,8 +400,12 @@ def main() -> None:
                 input_device["state"] = "triggered"
                 triggered_devices[device_key] = input_device
                 log.info(
-                    f"'{device_event_distinction}' "
-                    f"(detail: {event_detail}, sampled: {normalized_value})"
+                    "Device event triggered",
+                    extra={
+                        "device_event_distinction": device_event_distinction,
+                        "event_detail": event_detail,
+                        "sampled_value": normalized_value,
+                    },
                 )
             # include triggered inputs with configured inputs
             payload_inputs: list[dict[str, str]] = []
@@ -393,14 +445,15 @@ def main() -> None:
         raise RuntimeWarning("Shutting down...")
     except (KeyboardInterrupt, RuntimeWarning, ContextTerminated):
         die()
-        message = "Shutting down {}..."
-        log.info(message.format("RabbitMQ control"))
+        log.info("Shutting down RabbitMQ control listener...")
         mq_control_listener.stop()
-        log.info(message.format("RabbitMQ worker"))
+        log.info("Shutting down RabbitMQ worker...")
         try:
             mq_connection.close()
         except (AMQPConnectionError, ConnectionClosedByBroker, StreamLostError) as e:
-            log.warning(f"When closing: {e!s}")
+            log.warning(
+                "Problem when closing RabbitMQ connection", extra={"error": str(e)}
+            )
     finally:
         zmq_term()
     bye()

@@ -7,7 +7,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "Tai Lucas", email = "tglucas@gmail.com" }
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "abelectronics",
     "pika>=1.3.2",
@@ -35,7 +35,7 @@ cred_tool = "tailucas_pylib.tools.cred_tool:main"
 yaml_interpol = "tailucas_pylib.tools.yaml_interpol:main"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py314"
 src = ["app"]
 
 [tool.ruff.lint]
@@ -47,7 +47,7 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 files = ["app"]
 ignore_missing_imports = true
 strict = true
