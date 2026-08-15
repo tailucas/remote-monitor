@@ -87,13 +87,17 @@ RUN touch /etc/rsyslog.d/custom.conf
 RUN chown -R app:app /etc/rsyslog.d/
 # application directory
 WORKDIR /opt/app
-COPY app/ ./app
+# install rust for cryptography wheel builds
+ENV HOME=/home/app
+ENV PATH="${PATH}:${HOME}/.local/bin:${HOME}/.cargo/bin"
+COPY rust_setup.sh ./
+RUN /opt/app/rust_setup.sh
+# configuration
 COPY config/ ./config
 # user scripts
 COPY entrypoint.sh \
     healthchecks_heartbeat.sh \
     python_setup.sh \
-    rust_setup.sh \
     pyproject.toml \
     uv.lock \
     # for uv
@@ -103,12 +107,9 @@ RUN chown app:app /opt/app/uv.lock
 # setup as run user
 # FIXME entrypoint items that run as root
 # USER app
-ENV HOME=/home/app
-# install rust for cryptography wheel builds
-ENV PATH="${PATH}:${HOME}/.local/bin:${HOME}/.cargo/bin"
-# production image: uv installs main dependencies only (ignore default dependency groups)
+# application
+COPY app/ ./app
 ENV UV_NO_DEFAULT_GROUPS=1
-RUN /opt/app/rust_setup.sh
 RUN /opt/app/python_setup.sh
 RUN chown -R app:app /home/app/.cache/uv/
 STOPSIGNAL 37
