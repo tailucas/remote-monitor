@@ -1,74 +1,78 @@
 ---
 paths:
   - "app/**"
+  - "src/**"
+  - "internal/**"
+  - "rapp/**"
+  - "rlib/**"
+  - "pom.xml"
   - "pyproject.toml"
+  - "*.sh"
   - "Dockerfile"
 ---
 
-# remote-monitor Coding Standards
+# base-app Coding Standards
 
-Hardware edge application for Raspberry Pi (Balena Cloud deployment): samples
-ADC inputs over I2C (AB Electronics ADCPi), detects device state changes with
-configurable normal/tamper values and debounce, publishes events to RabbitMQ,
-and drives relay outputs (AB Electronics IOPi) from RabbitMQ trigger events.
+base-app is the **reference implementation** and template for all derived
+applications. It is intentionally batteries-included boilerplate: an
+Ubuntu-based Docker app with a Python core and optional Java, Go, and Rust
+components orchestrated by supervisord.
 
 ## 1. Posture
 
-- This project **extends the base-app architecture patterns** but uses a
-  custom Debian-based image for Balena/hardware reasons. It keeps the same
-  framework conventions: `tailucas_pylib` threading, ZMQ inproc transport,
-  Sentry, 1Password credentials.
-- Hardware is fallible: every I2C interaction needs timeout handling and
-  degraded-mode behavior, never unbounded retries that block the sampling
-  loop.
+- **Template-first.** Changes here set the standard for every derived app.
+  Prefer generic, well-documented patterns over feature-specific code.
+  event-processor is the most advanced derivative; when it proves a better
+  pattern (e.g. structured logging), backport it here.
+- **Boring and explicit.** Boilerplate is a feature: entrypoints, setup
+  scripts, and configuration stay readable and copy-paste-able.
 
-## 2. Application Architecture (`app/__main__.py`)
+## 2. Python Application (`app/`)
 
-- Single-file application (by design for edge simplicity) with:
-  - `Relay` — wraps one IOPi pin; `trigger(duration)` sets the pin high,
-    sleeps, and always resets low in `finally` (fail-safe de-energize).
-  - `RelayControl(AppThread)` — consumes relay trigger payloads from
-    `URL_WORKER_RELAY_CTRL` (ZMQ PULL via pylib `ZMQListener`) and maps
-    `device_key` → configured relay.
-  - `main()` — ADC/IOPi board bring-up from `app.conf` (`adc_address`,
-    `io_address`, `relay_address` sections), device mapping construction,
-    sampling loop, heartbeat/notify publication to RabbitMQ.
-- Sampling loop rules:
-  - Sample interval is `SAMPLE_INTERVAL_SECONDS`; ADC timeouts wait 1s and
-    continue.
-  - Normal-value comparison uses `SAMPLE_DEVIATION_TOLERANCE`; tamper values
-    override event detail when within tolerance.
-  - Debounce with `device_history` keyed by `device_key` storing
-    `(normalized_value, sampled_at, event_detail)`.
-  - Publish `event.notify.*` when triggered devices exist, otherwise
-    `event.heartbeat.*` after `HEARTBEAT_INTERVAL_SECONDS` of inactivity;
-    payloads are built with `tailucas_pylib.data.make_payload`.
+- The app follows the `tailucas_pylib` framework: `AppThread` subclasses,
+  ZMQ inproc transport (`URL_WORKER_*`), `exception_handler` for socket
+  lifecycles, `SignalHandler` + `thread_nanny` + `die()`/`bye()` shutdown.
+- Startup order in `main()`: creds validation → Sentry init → signal handler
+  → worker threads → thread nanny → `log.setLevel(logging.INFO)` →
+  `interruptable_sleep.wait()` → `die()`/`zmq_term()`/`bye()` in cleanup.
+- Dependencies are managed with `uv` (`pyproject.toml`, `uv.lock`); depend on
+  `tailucas-pylib[...]` extras, never vendored copies.
+- Lint with ruff/mypy per the project config before considering work done.
 
-## 3. Configuration & Credentials
+## 3. Java Application (`src/`, `pom.xml`)
 
-- Device topology comes entirely from `app.conf` sections: `input_type`,
-  `input_name`, `input_location`, `input_address`, `input_normal_values`,
-  `input_tamper_values`, `output_type`, `output_location`, `output_relay`,
-  `adc_address`, `io_address`, `relay_address`, `rabbitmq`, `creds`.
-- Secrets via pylib `Creds` (Sentry DSN etc.); hardware addresses are config,
-  not secrets.
+- Plain Maven jar (no framework); the entry point is `tailucas.app.App`,
+  packaged as `app.jar` (jar-with-dependencies) and run by supervisord.
+- Logging: SLF4J 2.x **fluent API** with Log4j2 JSON output — see
+  `logging.md`. Never use `System.out.println` for operational messages.
+- Keep dependencies minimal; pin versions as `pom.xml` properties.
 
-## 4. Dependencies
+## 4. Go (`internal/`) and Rust (`rapp/`, `rlib/`)
 
-- Hardware libraries come from the ABElectronics Python libraries (ADCPi,
-  IOPi) plus `pyserial`-style deps pinned in `pyproject.toml`; `pika` for
-  RabbitMQ; `tailucas-pylib[monitoring,mq]`.
-- Keep the app importable/testable on non-Pi hosts where possible (hardware
-  calls only at runtime, not import time).
+- Go and Rust components are optional demo runtimes (`RUN_GO_APP`,
+  `RUN_RUST_APP` env switches in `.env`).
+- New Go code should use `log/slog` with structured attributes
+  (`slog.Info("event", "key", value)`); avoid `fmt.Printf`-style logging
+  for operational output.
+- New Rust code SHOULD use a structured logging facade (`tracing` or `log`)
+  instead of `println!` for operational output.
 
-## 5. Deployment
+## 5. Configuration & Environment
 
-- Balena Cloud target (see `.balena/`); Dockerfile is Debian-based with the
-  same env contract as base-app (`APP_NAME`, `DEVICE_NAME`, `LOG_LEVEL`).
-- Graceful shutdown: `die()` → stop listeners → close RabbitMQ → `zmq_term()`
-  → `bye()`; relay pins must be de-energized by `Relay.trigger` finally-blocks.
+Configuration, secrets, and the `.env` → `config_interpol` flow are documented
+in `config.md`. The container lifecycle, entrypoint layering, and supervised
+program generation are documented in `container.md`.
 
-## 6. Lint & Type Checks
+## 6. Build & Run
 
-- `make lint` runs ruff + mypy; both must pass (this project is stricter than
-  most: keep ruff clean, mypy clean).
+The Makefile build graph and the Python/Java/Rust/Go toolchain conventions are
+documented in `build.md`. The Docker multi-stage build and run-as-user
+conventions are documented in `container.md`.
+
+## 7. Cross-cutting Rules
+
+- Every language runtime logs in structured style (see `logging.md`).
+- Graceful shutdown is mandatory in every runtime (signal handling, resource
+  teardown).
+- New integrations get a feature switch (env var or `app.conf` section) so
+  the template stays runnable with zero external dependencies.

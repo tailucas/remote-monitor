@@ -8,19 +8,20 @@ from random import randint
 from time import sleep
 
 import pika
-import sentry_sdk
 import zmq
 from ADCPi import ADCPi, ADCTimeoutError
 from IOPi import IOPi
+from opentelemetry import metrics, propagate, trace
+from opentelemetry.trace import SpanKind
+from opentelemetry.trace.propagation.tracecontext import (
+    TraceContextTextMapPropagator,
+)
 from pika.exceptions import (
     AMQPConnectionError,
     ConnectionClosedByBroker,
     StreamLostError,
 )
-from sentry_sdk.integrations.asyncio import AsyncioIntegration
-from sentry_sdk.integrations.logging import ignore_logger
-from sentry_sdk.integrations.sys_exit import SysExitIntegration
-from tailucas_pylib import DEVICE_NAME, app_config, log
+from tailucas_pylib import APP_NAME, DEVICE_NAME, app_config, log
 from tailucas_pylib.app import AppThread
 from tailucas_pylib.data import make_payload
 from tailucas_pylib.handler import exception_handler
@@ -33,16 +34,9 @@ from tailucas_pylib.threads import (
     shutting_down,
     thread_nanny,
 )
+from tailucas_pylib.tracing import record_exception
 from tailucas_pylib.zmq import zmq_term
 from zmq import ContextTerminated
-
-# Reduce Sentry noise from pika loggers
-ignore_logger("pika.adapters.base_connection")
-ignore_logger("pika.adapters.blocking_connection")
-ignore_logger("pika.adapters.utils.connection_workflow")
-ignore_logger("pika.adapters.utils.io_services_utils")
-ignore_logger("pika.channel")
-
 
 # FIXME: benchmark this to supply voltage using test pin or something else
 ADC_SAMPLE_MAX = 5.0
@@ -86,6 +80,7 @@ class RelayControl(AppThread):  # type: ignore[misc]
     def __init__(self, relay_mappings: dict[str, Relay]):
         AppThread.__init__(self, name=self.__class__.__name__)
         self._relay_mappings = relay_mappings
+        self._tracer = trace.get_tracer(APP_NAME)
 
     def run(self) -> None:
         with exception_handler(
@@ -138,26 +133,25 @@ class RelayControl(AppThread):  # type: ignore[misc]
                     "Device key mapped to relay",
                     extra={"device_key": device_key, "relay": str(relay)},
                 )
-                if duration:
-                    relay.trigger(duration=duration)
-                else:
-                    relay.trigger()
+                traceparent = control_payload["ioboard"].get("traceparent")
+                context = None
+                if traceparent:
+                    context = TraceContextTextMapPropagator().extract(
+                        {"traceparent": str(traceparent)}
+                    )
+                with self._tracer.start_as_current_span(
+                    "relay.trigger",
+                    context=context,
+                    kind=SpanKind.CONSUMER,
+                ) as span:
+                    span.set_attribute("device_key", device_key)
+                    if duration:
+                        relay.trigger(duration=duration)
+                    else:
+                        relay.trigger()
 
 
 def main() -> None:
-    try:
-        sentry_sdk.init(
-            dsn=app_config.get("creds", "sentry_dsn"),
-            enable_logs=True,
-            integrations=[
-                AsyncioIntegration(),
-                SysExitIntegration(capture_successful_exits=True),
-            ],
-            send_default_pii=True,
-        )
-    except AssertionError:
-        log.exception("Cannot set up Sentry instrumentation.")
-        bye()
     # connect to RabbitMQ
     mq_config_server = app_config.get("rabbitmq", "server_address")
     try:
@@ -286,6 +280,14 @@ def main() -> None:
 
     samples_processed = 0
 
+    tracer = trace.get_tracer(APP_NAME)
+    meter = metrics.get_meter(APP_NAME)
+    voltage_histogram = meter.create_histogram(
+        "read_voltage.duration",
+        unit="ms",
+        description="Time taken to read a voltage sample from an ADC",
+    )
+
     input_normal_values = dict(app_config.items("input_normal_values"))
     tamper_label = app_config.get("app", "tamper_label")
     input_tamper_values = dict(app_config.items("input_tamper_values"))
@@ -315,7 +317,12 @@ def main() -> None:
             for i in list(input_to_adc.keys()):
                 adc_name, pin = input_to_adc[i]
                 try:
+                    sample_start = time.perf_counter()
                     sampled_value = adcs[adc_name].read_voltage(pin)
+                    voltage_histogram.record(
+                        (time.perf_counter() - sample_start) * 1000,
+                        attributes={"adc_name": adc_name, "pin": pin},
+                    )
                 except ADCTimeoutError:
                     log.warning(
                         "Timeout reading value from ADC",
@@ -420,27 +427,40 @@ def main() -> None:
                 message_type = "notify"
                 if not triggered_devices:
                     message_type = "heartbeat"
-                try:
-                    mq_channel.basic_publish(
-                        exchange=mq_config_exchange,
-                        routing_key=(
-                            f"event.{message_type}."
-                            f"{mq_device_topic_suffix}.{DEVICE_NAME}"
-                        ),
-                        body=make_payload(
-                            data={
-                                "inputs": payload_inputs,
-                                "outputs": device_info["outputs"],
-                            }
-                        ),
-                    )
+                routing_key = (
+                    f"event.{message_type}."
+                    f"{mq_device_topic_suffix}.{DEVICE_NAME}"
+                )
+                with tracer.start_as_current_span(
+                    "publish device event", kind=SpanKind.PRODUCER
+                ) as span:
+                    span.set_attribute("messaging.system", "rabbitmq")
+                    span.set_attribute("messaging.destination", mq_config_exchange)
+                    span.set_attribute("messaging.destination_kind", "topic")
+                    span.set_attribute("messaging.operation", "publish")
+                    span.set_attribute("messaging.routing_key", routing_key)
+                    carrier: dict[str, str] = {}
+                    propagate.inject(carrier)
+                    try:
+                        mq_channel.basic_publish(
+                            exchange=mq_config_exchange,
+                            routing_key=routing_key,
+                            body=make_payload(
+                                data={
+                                    "inputs": payload_inputs,
+                                    "outputs": device_info["outputs"],
+                                    "traceparent": carrier["traceparent"],
+                                }
+                            ),
+                        )
+                    except (
+                        AMQPConnectionError,
+                        ConnectionClosedByBroker,
+                        StreamLostError,
+                    ) as e:
+                        record_exception(e)
+                        raise RuntimeWarning() from e
                     last_upload = time.time()
-                except (
-                    AMQPConnectionError,
-                    ConnectionClosedByBroker,
-                    StreamLostError,
-                ) as e:
-                    raise RuntimeWarning() from e
             interruptable_sleep.wait(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except (KeyboardInterrupt, RuntimeWarning, ContextTerminated):
@@ -461,4 +481,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
