@@ -311,6 +311,8 @@ def main() -> None:
         )
         last_upload = 0.0
         device_history: dict[str, tuple[float, float, str | None]] = {}
+        last_triggered_keys: set[str] = set()
+        active_span: trace.Span | None = None
         while not shutting_down:
             triggered_devices: dict[str, dict[str, str]] = {}
             output_samples: dict[str, int] = {}
@@ -422,25 +424,61 @@ def main() -> None:
                     payload_inputs.append(triggered_devices[device_key])
                 else:
                     payload_inputs.append(device_input)
+
+            # trace management
+            current_triggered_keys = set(triggered_devices.keys())
+            if current_triggered_keys != last_triggered_keys:
+                if active_span:
+                    active_span.end()
+                    active_span = None
+
+                if current_triggered_keys:
+                    active_span = tracer.start_span(
+                        "publish device event", kind=SpanKind.PRODUCER
+                    )
+                    active_span.set_attribute("messaging.system", "rabbitmq")
+                    active_span.set_attribute("messaging.destination", mq_config_exchange)
+                    active_span.set_attribute("messaging.destination_kind", "topic")
+                    active_span.set_attribute("messaging.operation", "publish")
+
+                last_triggered_keys = current_triggered_keys
+
             inactivity = time.time() - last_upload
             if triggered_devices or inactivity > HEARTBEAT_INTERVAL_SECONDS:
                 message_type = "notify"
+                mq_message_type = "input_active"
                 if not triggered_devices:
                     message_type = "heartbeat"
+                    mq_message_type = message_type
+
                 routing_key = (
                     f"event.{message_type}."
                     f"{mq_device_topic_suffix}.{DEVICE_NAME}"
                 )
-                with tracer.start_as_current_span(
-                    "publish device event", kind=SpanKind.PRODUCER
-                ) as span:
-                    span.set_attribute("messaging.system", "rabbitmq")
-                    span.set_attribute("messaging.destination", mq_config_exchange)
-                    span.set_attribute("messaging.destination_kind", "topic")
-                    span.set_attribute("messaging.operation", "publish")
-                    span.set_attribute("messaging.routing_key", routing_key)
+
+                # if it's a heartbeat, it always gets its own span
+                # if it's a notification, it uses the active span (which persists if the key set is unchanged)
+                span_to_use = active_span
+                heartbeat_span = None
+                if not triggered_devices:
+                    heartbeat_span = tracer.start_span(
+                        "publish device event (heartbeat)", kind=SpanKind.PRODUCER
+                    )
+                    heartbeat_span.set_attribute("messaging.system", "rabbitmq")
+                    heartbeat_span.set_attribute(
+                        "messaging.destination", mq_config_exchange
+                    )
+                    heartbeat_span.set_attribute("messaging.destination_kind", "topic")
+                    heartbeat_span.set_attribute("messaging.operation", "publish")
+                    span_to_use = heartbeat_span
+
+                if span_to_use:
+                    span_to_use.set_attribute("messaging.routing_key", routing_key)
                     carrier: dict[str, str] = {}
-                    propagate.inject(carrier)
+                    # use the specific span's context for injection
+                    with trace.use_span(span_to_use, set_attribute_on_status_code=False):
+                        propagate.inject(carrier)
+
                     try:
                         mq_channel.basic_publish(
                             exchange=mq_config_exchange,
@@ -449,6 +487,7 @@ def main() -> None:
                                 data={
                                     "inputs": payload_inputs,
                                     "outputs": device_info["outputs"],
+                                    "message_type": mq_message_type,
                                     "traceparent": carrier["traceparent"],
                                 }
                             ),
@@ -459,11 +498,19 @@ def main() -> None:
                         StreamLostError,
                     ) as e:
                         record_exception(e)
+                        if heartbeat_span:
+                            heartbeat_span.end()
                         raise RuntimeWarning() from e
+                    finally:
+                        if heartbeat_span:
+                            heartbeat_span.end()
+
                     last_upload = time.time()
             interruptable_sleep.wait(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except (KeyboardInterrupt, RuntimeWarning, ContextTerminated):
+        if active_span:
+            active_span.end()
         die()
         log.info("Shutting down RabbitMQ control listener...")
         mq_control_listener.stop()
