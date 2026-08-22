@@ -437,7 +437,9 @@ def main() -> None:
                         "publish device event", kind=SpanKind.PRODUCER
                     )
                     active_span.set_attribute("messaging.system", "rabbitmq")
-                    active_span.set_attribute("messaging.destination", mq_config_exchange)
+                    active_span.set_attribute(
+                        "messaging.destination", mq_config_exchange
+                    )
                     active_span.set_attribute("messaging.destination_kind", "topic")
                     active_span.set_attribute("messaging.operation", "publish")
 
@@ -456,8 +458,8 @@ def main() -> None:
                     f"{mq_device_topic_suffix}.{DEVICE_NAME}"
                 )
 
-                # if it's a heartbeat, it always gets its own span
-                # if it's a notification, it uses the active span (which persists if the key set is unchanged)
+                # heartbeats always get their own span
+                # notifications reuse the active span when the key set is unchanged
                 span_to_use = active_span
                 heartbeat_span = None
                 if not triggered_devices:
@@ -476,7 +478,7 @@ def main() -> None:
                     span_to_use.set_attribute("messaging.routing_key", routing_key)
                     carrier: dict[str, str] = {}
                     # use the specific span's context for injection
-                    with trace.use_span(span_to_use, set_attribute_on_status_code=False):
+                    with trace.use_span(span_to_use, end_on_exit=False):
                         propagate.inject(carrier)
 
                     try:
