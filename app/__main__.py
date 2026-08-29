@@ -454,60 +454,41 @@ def main() -> None:
                     mq_message_type = message_type
 
                 routing_key = (
-                    f"event.{message_type}."
-                    f"{mq_device_topic_suffix}.{DEVICE_NAME}"
+                    f"event.{message_type}.{mq_device_topic_suffix}.{DEVICE_NAME}"
                 )
 
-                # heartbeats always get their own span
                 # notifications reuse the active span when the key set is unchanged
-                span_to_use = active_span
-                heartbeat_span = None
-                if not triggered_devices:
-                    heartbeat_span = tracer.start_span(
-                        "publish device event (heartbeat)", kind=SpanKind.PRODUCER
-                    )
-                    heartbeat_span.set_attribute("messaging.system", "rabbitmq")
-                    heartbeat_span.set_attribute(
-                        "messaging.destination", mq_config_exchange
-                    )
-                    heartbeat_span.set_attribute("messaging.destination_kind", "topic")
-                    heartbeat_span.set_attribute("messaging.operation", "publish")
-                    span_to_use = heartbeat_span
-
+                # publish OTEL spans only when there are triggered devices
+                span_to_use = active_span if triggered_devices else None
+                carrier: dict[str, str] = {}
                 if span_to_use:
                     span_to_use.set_attribute("messaging.routing_key", routing_key)
-                    carrier: dict[str, str] = {}
                     # use the specific span's context for injection
                     with trace.use_span(span_to_use, end_on_exit=False):
                         propagate.inject(carrier)
 
-                    try:
-                        mq_channel.basic_publish(
-                            exchange=mq_config_exchange,
-                            routing_key=routing_key,
-                            body=make_payload(
-                                data={
-                                    "inputs": payload_inputs,
-                                    "outputs": device_info["outputs"],
-                                    "message_type": mq_message_type,
-                                    "traceparent": carrier["traceparent"],
-                                }
-                            ),
-                        )
-                    except (
-                        AMQPConnectionError,
-                        ConnectionClosedByBroker,
-                        StreamLostError,
-                    ) as e:
-                        record_exception(e)
-                        if heartbeat_span:
-                            heartbeat_span.end()
-                        raise RuntimeWarning() from e
-                    finally:
-                        if heartbeat_span:
-                            heartbeat_span.end()
+                try:
+                    mq_channel.basic_publish(
+                        exchange=mq_config_exchange,
+                        routing_key=routing_key,
+                        body=make_payload(
+                            data={
+                                "inputs": payload_inputs,
+                                "outputs": device_info["outputs"],
+                                "message_type": mq_message_type,
+                                "traceparent": carrier.get("traceparent", ""),
+                            }
+                        ),
+                    )
+                except (
+                    AMQPConnectionError,
+                    ConnectionClosedByBroker,
+                    StreamLostError,
+                ) as e:
+                    record_exception(e)
+                    raise RuntimeWarning() from e
 
-                    last_upload = time.time()
+                last_upload = time.time()
             interruptable_sleep.wait(SAMPLE_INTERVAL_SECONDS)
         raise RuntimeWarning("Shutting down...")
     except (KeyboardInterrupt, RuntimeWarning, ContextTerminated):
